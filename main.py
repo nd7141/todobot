@@ -26,11 +26,38 @@ class Listener(object):
             if content_type == "text":
                 text = m.text
                 if text[:5].lower() == '/todo':
-                    db.setdefault(chatid, []).append((len(db.get(chatid, 0)), text[5:]))
+                    db.setdefault(str(chatid), []).append(text[5:])
+                    print 'Changed db:', db
                     with open(self.dbfile, 'w+') as fp:
                         json.dump(db, fp)
-                    print 'Wrote new task into todo'
-                    tb.send_message(chatid, 'Wrote new task into todo')
+                    tb.send_message(chatid, 'Wrote new task')
+                elif text[:5].lower() == '/list':
+                    if not len(db.get(str(chatid), [])):
+                        tb.send_message(chatid, 'No tasks in the list')
+                    else:
+                        s = 'Tasks:\n' + '\n'.join([str(ix+1) + '.' + task for ix, task in enumerate(db[str(chatid)])])
+                        tb.send_message(chatid, s)
+                elif text[:5].lower() == '/done':
+                    try:
+                        tsk = int(text[5:])
+                        del db[str(chatid)][tsk-1]
+                        tb.send_message(chatid, 'Removed task %s for you' % tsk)
+                        with open(self.dbfile, 'w+') as fp:
+                            json.dump(db, fp)
+                    except ValueError:
+                        tb.send_message(chatid, 'Provide number of the existing task')
+                    except IndexError:
+                        tb.send_message(chatid, 'No such task exist')
+                    except KeyError:
+                        tb.send_message(chatid, 'No tasks in the list')
+                elif text[:5].lower() == '/help':
+                    s = '''This is a simple todo bot -- it will help you to keep track of you tasks.
+
+                    Write /help -- to get this message.
+                    Write /todo "Name of the task" -- to write new task in the list.
+                    Write /list -- to get the list of existing tasks.
+                    Write /done "Number of the task" -- to remove task from the list.'''
+                    tb.send_message(chatid, s)
 
 
 
