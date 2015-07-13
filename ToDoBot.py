@@ -55,6 +55,18 @@ class User(Jsonish):
         self.last_name = last_name
         self.username = username
 
+    def present(self, db):
+        if db.find_one({'user_id': self.user_id}):
+            return True
+        return False
+
+    def write(self, db):
+        if not self.present(db):
+            print 'Writing new User'
+            db.insert_one(self.__dict__)
+        else:
+            print 'User already exists'
+
 class Group(Jsonish):
     @classmethod
     def from_json(cls, json_string, timestamp, participant):
