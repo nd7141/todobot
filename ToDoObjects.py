@@ -56,14 +56,8 @@ class User(Jsonish):
         self.last_name = last_name
         self.username = username
 
-    def present(self, db):
-        if db.find_one({'user_id': self.user_id}):
-            return True
-        return False
-
     def write(self, db):
-        if not self.present(db):
-            db.insert_one(self.__dict__)
+        db.insert_one(self.__dict__)
 
 class Group(Jsonish):
     @classmethod
@@ -81,7 +75,7 @@ class Group(Jsonish):
 
 class Task(Jsonish):
     @classmethod
-    def from_json(cls, json_string, to_id):
+    def from_json(cls, json_string, text, to_id=None):
         obj = cls.check_json(json_string)
         message_id = obj['message_id']
         chat_id = obj['chat']['id']
@@ -89,10 +83,11 @@ class Task(Jsonish):
         created = obj['date']
         if to_id is None:
             to_id = ''
-        return Task(message_id, chat_id, from_id, created, to_id)
+        return Task(message_id, text, chat_id, from_id, created, to_id)
 
-    def __init__(self, message_id, chat_id, from_id, created, to_id):
+    def __init__(self, message_id, text, chat_id, from_id, created, to_id):
         self.message_id = message_id
+        self.text = text
         self.chat_id = chat_id
         self.from_id = from_id
         self.created = created
@@ -104,6 +99,90 @@ class Task(Jsonish):
 
     def finish(self):
         self.finished = True
+
+class Update(object):
+    def __init__(self, update):
+        self.update = update
+
+    def write_user(self, db):
+        if not db.find_one({"user_id": self.update["from"]["id"]}):
+            user = User.from_json(self.update['from'], self.update['date'])
+            user.write(db)
+
+    def get_command(self):
+        if 'text' in self.update and self.update['text'].startswith('/'):
+            return self.update['text'].split()[0][1:].lower()
+
+    def get_text(self, command):
+        return self.update['text'][1 + len(command):]
+
+
+class ToDoUpdate(Update):
+    def __init__(self, update):
+        super(self.__class__, self).__init__(update)
+        self.commands = ['todo', 'list', 'done', 'help', 'cheer']
+
+    def list(self, db):
+        cursor = db.find({"chat_id": self.update['from']['id'], "finished": False}).sort("created")
+        # for t in cursor:
+        #     print t['text']
+        tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
+        return '\n'.join(tasks) if tasks else "My lord, you have no tasks!"
+
+    def done(self, db, number):
+        try:
+            number = int(number)
+        except ValueError:
+            return "I'm very sorry, my lord: Task {0} does not exist in your list :disappointed:".format(number)
+
+        cursor = db.find({"chat_id": self.update['from']['id'], "finished": False}).sort("created")
+        for ix, task in enumerate(cursor):
+            if ix + 1 == number:
+                db.update({"_id": task["_id"]},
+                          {"set": {"finished": True}})
+                return "I'm pleased to claim that you finished task {0}, my lord!".format(number)
+        return "I'm very sorry, my lord: Task {0} does not exist in your list.".format(number)
+
+    def todo(self, db, text):
+        new_tsk = Task.from_json(self.update, text)
+        new_tsk.write(db)
+        return "You wrote new task!"
+
+    def help(self):
+        return ''' This is a Telegram ToDo bot, my lord.
+
+        Write /help - to get this message.
+        Write /todo Description_of_the_task - to write another task.
+        Write /list - to list all tasks in your ToDo list.
+        Write /done Number_of_the_task - to finish the task.
+
+        Support: ivanovserg990@gmail.com
+        '''
+
+    def cheer(self):
+        return '''You're not a man, You're God!'''
+
+    #TODO write more commands here
+
+    def execute(self, users_db, tasks_db):
+        # Write new user into database
+        self.write_user(users_db)
+
+        # Execute command
+        command = self.get_command()
+        if command in self.commands:
+            text = self.get_text(command)
+            if command == 'list':
+                result = self.list(tasks_db)
+            elif command == 'todo':
+                result = self.todo(tasks_db, text)
+            elif command == 'done':
+                result = self.done(tasks_db, text)
+            elif command == 'help':
+                result = self.help()
+            elif command == 'cheer':
+                result = self.cheer()
+            return result
 
 if __name__ == "__main__":
     console = []
