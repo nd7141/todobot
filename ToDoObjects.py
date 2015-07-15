@@ -133,7 +133,7 @@ class ToDoUpdate(Update):
         try:
             number = int(number)
         except ValueError:
-            return "I'm very sorry, my lord: Task {0} does not exist in your list :disappointed:".format(number)
+            return "I'm very sorry, my lord. You specified wrong task.".format(number)
 
         cursor = db.find({"chat_id": self.update['from']['id'], "finished": False}).sort("created")
         for ix, task in enumerate(cursor):
@@ -141,7 +141,7 @@ class ToDoUpdate(Update):
                 db.update({"_id": task["_id"]},
                           {"set": {"finished": True}})
                 return "I'm pleased to claim that you finished task {0}, my lord!".format(number)
-        return "I'm very sorry, my lord: Task {0} does not exist in your list.".format(number)
+        return "I'm very sorry, my lord. Task {0} does not exist in your list.".format(number)
 
     def todo(self, db, text):
         new_tsk = Task.from_json(self.update, text)
