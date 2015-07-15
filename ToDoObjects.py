@@ -120,12 +120,10 @@ class Update(object):
 class ToDoUpdate(Update):
     def __init__(self, update):
         super(self.__class__, self).__init__(update)
-        self.commands = ['todo', 'list', 'done', 'help', 'cheer']
+        self.commands = ['todo', 'list', 'done', 'help', 'cheer', 'make', 'for', 'over']
 
     def list(self, db):
-        cursor = db.find({"chat_id": self.update['from']['id'], "finished": False}).sort("created")
-        # for t in cursor:
-        #     print t['text']
+        cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
         return '\n'.join(tasks) if tasks else "My lord, you have no tasks!"
 
@@ -134,14 +132,14 @@ class ToDoUpdate(Update):
             number = int(number)
         except ValueError:
             return "I'm very sorry, my lord. You specified wrong task.".format(number)
-
-        cursor = db.find({"chat_id": self.update['from']['id'], "finished": False}).sort("created")
+        cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False}).sort("created")
         for ix, task in enumerate(cursor):
             if ix + 1 == number:
                 db.update({"_id": task["_id"]},
                           {"set": {"finished": True}})
                 return "I'm pleased to claim that you finished task {0}, my lord!".format(number)
         return "I'm very sorry, my lord. Task {0} does not exist in your list.".format(number)
+
 
     def todo(self, db, text):
         new_tsk = Task.from_json(self.update, text)
@@ -161,6 +159,49 @@ class ToDoUpdate(Update):
 
     def cheer(self):
         return '''You're not a man, You're God!'''
+
+    def make(self, db, text):
+        words = text.split()
+        try:
+            who = words[0]
+        except IndexError:
+            return "Please provide to whom you want assign a task, my lord."
+        if len(words) < 2:
+            return "Please provide a task, my lord."
+        else:
+            new_tsk = Task.from_json(self.update, ' '.join(words[1:]), who)
+            new_tsk.write(db)
+            return u"You assigned task to {0}, my lord".format(who)
+
+    def for_f(self, db, text):
+        words = text.split()
+        try:
+            who = words[0]
+        except IndexError:
+            return "Please provide for whom you want to show ToDo list, my lord."
+        cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": who}).sort("created")
+        tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
+        return '\n'.join(tasks) if tasks else u"{0} has no tasks!".format(who)
+
+    def over(self, db, text):
+        words = text.split()
+        try:
+            who = words[0]
+        except IndexError:
+            return "Please provide for whom you want to remove a task, my lord."
+        try:
+            number = int(' '.join(words[1:]))
+        except ValueError:
+            return u"I'm very sorry, my lord. You specified wrong number of task: {0}.".format(' '.join(words[1:]))
+
+        cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": who}).sort("created")
+        for ix, task in enumerate(cursor):
+            if ix + 1 == number:
+                db.update({"_id": task["_id"]},
+                          {"set": {"finished": True}})
+                return u"I'm pleased to claim that {0} finished task {1}, my lord!".format(who, number)
+        return u"I'm very sorry, my lord. Task {0} does not exist in the list of {1}.".format(number, who)
+
 
     #TODO write more commands here
 
@@ -182,6 +223,12 @@ class ToDoUpdate(Update):
                 result = self.help()
             elif command == 'cheer':
                 result = self.cheer()
+            elif command == 'make':
+                result = self.make(tasks_db, text)
+            elif command == 'for':
+                result = self.for_f(tasks_db, text)
+            elif command == 'over':
+                result = self.over(tasks_db, text)
             return result
 
 if __name__ == "__main__":
