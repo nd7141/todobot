@@ -123,7 +123,7 @@ class ToDoUpdate(Update):
         self.commands = ['todo', 'list', 'done', 'help', 'cheer', 'make', 'for', 'over']
 
     def list(self, db):
-        cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False}).sort("created")
+        cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
         return '\n'.join(tasks) if tasks else "My lord, you have no tasks!"
 
@@ -154,7 +154,8 @@ class ToDoUpdate(Update):
         Write /list - to list all tasks in your ToDo list.
         Write /done Number_of_the_task - to finish the task.
 
-        Support: ivanovserg990@gmail.com
+        The bot is under heavy self-development. Official release soon.
+        Having more ideas or want to contribute? Write to ivanovserg990@gmail.com.
         '''
 
     def cheer(self):
