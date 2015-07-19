@@ -2,22 +2,22 @@
 '''
 from __future__ import division
 __author__ = 'sivanov'
-import telebot, json, threading
-import time
-import logging
+import telebot, threading, traceback, time
 
 class ToDoBot(telebot.TeleBot):
     """ ToDoBot overrides the functionality of get_update function of TeleBot.
     In addition to getting array of updates (messages), we also get User and (optional) Group object.
     """
     def get_update(self):
-        logging.basicConfig(level=logging.DEBUG, filename='log.txt')
         new_messages = []
         try:
             updates = telebot.apihelper.get_updates(self.token, offset=(self.last_update_id + 1), timeout=20)
-        except Exception:
+        except Exception as e:
+            print e
             print("TeleBot: Exception occurred.")
-            logging.exception("An error retrieving updates!")
+            with open('log.txt', 'a+') as f:
+                f.write('''Exception in get_update at {0}.\n'''.format(time.strftime("%d-%m-%Y %H:%M:%S")))
+                f.write(traceback.format_exc() + '\n')
         else:
             for update in updates:
                 if update['update_id'] > self.last_update_id:
@@ -50,8 +50,6 @@ class ToDoBot(telebot.TeleBot):
         self.polling_thread.start()
 
     def __polling(self):
-        logging.basicConfig(level=logging.DEBUG, filename='log.txt')
-        logging.getLogger("urllib3").setLevel(logging.WARNING)
         print('TeleBot: Started polling.')
         while not self.__stop_polling:
             try:
@@ -59,7 +57,9 @@ class ToDoBot(telebot.TeleBot):
             except Exception as e:
                 print("TeleBot: Exception occurred.")
                 print(e)
-                logging.exception("TeleBot: Exception occurred.")
+                with open('log.txt', 'a+') as f:
+                    f.write('''Exception in get_update at {0}.\n'''.format(time.strftime("%d-%m-%Y %H:%M:%S")))
+                    f.write(traceback.format_exc() + '\n')
                 self.__stop_polling = True
 
         print('TeleBot: Stopped polling.')
