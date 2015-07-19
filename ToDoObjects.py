@@ -2,7 +2,7 @@
 
 '''
 from __future__ import division
-import json
+import json, string
 __author__ = 'sivanov'
 
 class Jsonish(object):
@@ -125,14 +125,14 @@ class ToDoUpdate(Update):
     def list(self, db):
         cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
-        return '\n'.join(tasks) if tasks else "My lord, you have no tasks!"
+        return 'Common list:\n' + '\n'.join(tasks) if tasks else "My lord, you have no tasks!"
 
     def done(self, db, number):
         try:
             number = int(number)
         except ValueError:
             return "I'm very sorry, my lord. You specified wrong task.".format(number)
-        cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False}).sort("created")
+        cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': ''}).sort("created")
         for ix, task in enumerate(cursor):
             if ix + 1 == number:
                 db.update({"_id": task["_id"]},
@@ -142,6 +142,8 @@ class ToDoUpdate(Update):
 
 
     def todo(self, db, text):
+        if not text:
+            return "Please, provide non-empty task, my lord!"
         new_tsk = Task.from_json(self.update, text)
         new_tsk.write(db)
         return "You wrote new task!"
@@ -182,7 +184,7 @@ class ToDoUpdate(Update):
             return "Please provide for whom you want to show ToDo list, my lord."
         cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": who}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
-        return '\n'.join(tasks) if tasks else u"{0} has no tasks!".format(who)
+        return who + ':\n' + '\n'.join(tasks) if tasks else u"{0} has no tasks!".format(who)
 
     def over(self, db, text):
         words = text.split()
