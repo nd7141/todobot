@@ -120,7 +120,7 @@ class Update(object):
 class ToDoUpdate(Update):
     def __init__(self, update):
         super(self.__class__, self).__init__(update)
-        self.commands = ['todo', 'list', 'done', 'help', 'cheer', 'make', 'for', 'over']
+        self.commands = ['todo', 'list', 'done', 'help', 'start', 'cheer', 'make', 'for', 'over']
 
     def list(self, db):
         cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
