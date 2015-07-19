@@ -2,7 +2,7 @@
 
 '''
 from __future__ import division
-import json, string
+import json, os
 __author__ = 'sivanov'
 
 class Jsonish(object):
@@ -127,26 +127,32 @@ class ToDoUpdate(Update):
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
         return 'Common list:\n' + '\n'.join(tasks) if tasks else "My lord, you have no tasks!"
 
-    def done(self, db, number):
+    def done(self, db, numbers):
         try:
-            number = int(number)
+            numbers = map(int, numbers.split(','))
         except ValueError:
-            return "I'm very sorry, my lord. You specified wrong task.".format(number)
+            return "I'm very sorry, my lord. Some of the tasks do not exist."
         cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': ''}).sort("created")
+        finished_tsk = []
         for ix, task in enumerate(cursor):
-            if ix + 1 == number:
+            if ix + 1 in numbers:
                 db.update({"_id": task["_id"]},
                           {"set": {"finished": True}})
-                return "I'm pleased to claim that you finished task {0}, my lord!".format(number)
-        return "I'm very sorry, my lord. Task {0} does not exist in your list.".format(number)
+                finished_tsk.append(str(ix+1))
+        if finished_tsk:
+            return "I'm pleased to claim that you finished task {0}, my lord!".format(', '.join(finished_tsk))
+        return "I'm very sorry, my lord. All of the tasks {0} do not exist.".format(', '.join(map(str, numbers)))
 
 
     def todo(self, db, text):
-        if not text:
-            return "Please, provide non-empty task, my lord!"
-        new_tsk = Task.from_json(self.update, text)
-        new_tsk.write(db)
-        return "You wrote new task!"
+        tasks = text.split(os.linesep)
+        count = 0
+        for t in tasks:
+            if t.strip():
+                new_tsk = Task.from_json(self.update, t)
+                new_tsk.write(db)
+                count += 1
+        return "You wrote {0} task, my lord!".format(count) if count else "Please, provide non-empty task, my lord."
 
     def help(self):
         return ''' This is a Telegram ToDo bot, my lord.
@@ -164,17 +170,23 @@ class ToDoUpdate(Update):
         return '''You're not a man, You're God!'''
 
     def make(self, db, text):
-        words = text.split()
+        lines = text.split(os.linesep)
         try:
-            who = words[0]
+            who = lines[0].split()[0]
         except IndexError:
             return "Please provide to whom you want assign a task, my lord."
-        if len(words) < 2:
+
+        if lines[0] < 2:
             return "Please provide a task, my lord."
         else:
-            new_tsk = Task.from_json(self.update, ' '.join(words[1:]), who)
-            new_tsk.write(db)
-            return u"You assigned task to {0}, my lord".format(who)
+            tsks = [' '.join(lines[0].split()[1:])] + lines[1:]
+            count = 0
+            for t in tsks:
+                if t.strip():
+                    new_tsk = Task.from_json(self.update, t, who)
+                    new_tsk.write(db)
+                    count += 1
+            return u"You wrote {0} task to {1}, my lord!".format(count, who) if count else "Please, provide non-empty task, my lord."
 
     def for_f(self, db, text):
         words = text.split()
@@ -193,17 +205,21 @@ class ToDoUpdate(Update):
         except IndexError:
             return "Please provide for whom you want to remove a task, my lord."
         try:
-            number = int(' '.join(words[1:]))
+            numbers = map(int, ' '.join(words[1:]).split(','))
         except ValueError:
-            return u"I'm very sorry, my lord. You specified wrong number of task: {0}.".format(' '.join(words[1:]))
+            return u"I'm very sorry, my lord. Some of the tasks {0} are not numeric.".format(','.join(map(str, numbers)))
 
         cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": who}).sort("created")
+        finished_tsk = []
         for ix, task in enumerate(cursor):
-            if ix + 1 == number:
+
+            if ix + 1 in numbers:
                 db.update({"_id": task["_id"]},
                           {"set": {"finished": True}})
-                return u"I'm pleased to claim that {0} finished task {1}, my lord!".format(who, number)
-        return u"I'm very sorry, my lord. Task {0} does not exist in the list of {1}.".format(number, who)
+                finished_tsk.append(str(ix+1))
+        if finished_tsk:
+            return u"I'm pleased to claim that {0} finished tasks {1}, my lord!".format(who, ','.join(finished_tsk))
+        return u"I'm very sorry, my lord. All tasks {0} do not exist in the list of {1}.".format(','.join(map(str, numbers)), who)
 
 
     #TODO write more commands here
@@ -222,7 +238,7 @@ class ToDoUpdate(Update):
                 result = self.todo(tasks_db, text)
             elif command == 'done':
                 result = self.done(tasks_db, text)
-            elif command == 'help':
+            elif command == 'help' or command == 'start':
                 result = self.help()
             elif command == 'cheer':
                 result = self.cheer()
