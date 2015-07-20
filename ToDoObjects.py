@@ -73,6 +73,9 @@ class Group(Jsonish):
         self.created = created
         self.participants = [participant]
 
+    def write(self, db):
+        db.insert_one(self.__dict__)
+
 class Task(Jsonish):
     @classmethod
     def from_json(cls, json_string, text, to_id=None):
@@ -109,6 +112,19 @@ class Update(object):
             user = User.from_json(self.update['from'], self.update['date'])
             user.write(db)
 
+    def write_group(self, db):
+        if "title" in self.update["chat"]:
+            group = db.find_one({"group_id": self.update["chat"]["id"]})
+            if group:
+                prts = group["participants"]
+                if self.update["from"]["id"] not in prts:
+                    prts.append(self.update["from"]["id"])
+                    db.update({"_id": group["_id"]},
+                              {"$set": {"participants": prts}})
+            else:
+                group = Group.from_json(self.update["chat"], self.update["date"], self.update["from"]["id"])
+                group.write(db)
+
     def get_command(self):
         if 'text' in self.update and self.update['text'].startswith('/'):
             return self.update['text'].split()[0][1:].lower()
@@ -118,9 +134,10 @@ class Update(object):
 
 
 class ToDoUpdate(Update):
+    #TODO rearrange the logic. Bot should write and execute, not objects.
     def __init__(self, update):
         super(self.__class__, self).__init__(update)
-        self.commands = ['todo', 'list', 'done', 'help', 'start', 'cheer', 'make', 'for', 'over']
+        self.commands = ['todo', 'list', 'done', 'help', 'start', 'cheer', 'make', 'for', 'over', 'countu', 'countg']
 
     def list(self, db):
         cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
@@ -137,7 +154,7 @@ class ToDoUpdate(Update):
         for ix, task in enumerate(cursor):
             if ix + 1 in numbers:
                 db.update({"_id": task["_id"]},
-                          {"set": {"finished": True}})
+                          {"$set": {"finished": True}})
                 finished_tsk.append(str(ix+1))
         if finished_tsk:
             return "I'm pleased to claim that you finished task {0}, my lord!".format(', '.join(finished_tsk))
@@ -215,18 +232,21 @@ class ToDoUpdate(Update):
 
             if ix + 1 in numbers:
                 db.update({"_id": task["_id"]},
-                          {"set": {"finished": True}})
+                          {"$set": {"finished": True}})
                 finished_tsk.append(str(ix+1))
         if finished_tsk:
             return u"I'm pleased to claim that {0} finished tasks {1}, my lord!".format(who, ','.join(finished_tsk))
         return u"I'm very sorry, my lord. All tasks {0} do not exist in the list of {1}.".format(','.join(map(str, numbers)), who)
 
+    def count(self, db):
+        return str(db.find().count())
 
     #TODO write more commands here
 
-    def execute(self, users_db, tasks_db):
-        # Write new user into database
+    def execute(self, users_db, groups_db, tasks_db):
+        # Write new user, group into database
         self.write_user(users_db)
+        self.write_group(groups_db)
 
         # Execute command
         command = self.get_command()
@@ -248,6 +268,10 @@ class ToDoUpdate(Update):
                 result = self.for_f(tasks_db, text)
             elif command == 'over':
                 result = self.over(tasks_db, text)
+            elif command == 'countu':
+                result = self.count(users_db)
+            elif command == 'countg':
+                result = self.count(groups_db)
             return result
 
 if __name__ == "__main__":
