@@ -2,7 +2,7 @@
 
 '''
 from __future__ import division
-import json, os
+import json, os, time, datetime
 __author__ = 'sivanov'
 
 class Jsonish(object):
@@ -94,6 +94,7 @@ class Task(Jsonish):
         self.chat_id = chat_id
         self.from_id = from_id
         self.created = created
+        self.end = None
         self.finished = False
         self.to_id = to_id
 
@@ -132,12 +133,16 @@ class Update(object):
     def get_text(self, command):
         return self.update['text'][1 + len(command):]
 
+    @staticmethod
+    def strtime(unix):
+        return datetime.datetime.fromtimestamp(int(unix)).strftime('%d %B %Y %H:%M:%S')
+
 
 class ToDoUpdate(Update):
     #TODO rearrange the logic. Bot should write and execute, not objects.
     def __init__(self, update):
         super(self.__class__, self).__init__(update)
-        self.commands = ['todo', 'list', 'done', 'help', 'start', 'cheer', 'make', 'for', 'over', 'countu', 'countg']
+        self.commands = ['todo', 'list', 'done', 'help', 'start', 'cheer', 'make', 'for', 'over', 'countu', 'countg', 'completed']
 
     def list(self, db):
         cursor = db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
@@ -154,7 +159,7 @@ class ToDoUpdate(Update):
         for ix, task in enumerate(cursor):
             if ix + 1 in numbers:
                 db.update({"_id": task["_id"]},
-                          {"$set": {"finished": True}})
+                          {"$set": {"finished": True, "end": time.time()}})
                 finished_tsk.append(str(ix+1))
         if finished_tsk:
             return "I'm pleased to claim that you finished task {0}, my lord!".format(', '.join(finished_tsk))
@@ -175,11 +180,12 @@ class ToDoUpdate(Update):
         return ''' This is a Telegram ToDo bot, my lord.
 
         Write /help - to get this message.
-        Write /todo Description_of_the_task - to write another task.
-        Write /list - to list all tasks in your ToDo list.
-        Write /done Number_of_the_task - to finish the task.
+        Write /todo task - to write another task. You can provide multiple tasks, where each task in a new line.
+        Write /list - to list current tasks in your ToDo list.
+        Write /done task1, task2, ... - to finish the task.
+        Write /completed - to list completed tasks in your ToDo list. (new)
 
-        The bot is under heavy self-development. Official release soon.
+        The bot is under heavy self-development and in alpha release now. Official release soon.
         Having more ideas or want to contribute? Write to ivanovserg990@gmail.com.
         '''
 
@@ -232,7 +238,7 @@ class ToDoUpdate(Update):
 
             if ix + 1 in numbers:
                 db.update({"_id": task["_id"]},
-                          {"$set": {"finished": True}})
+                          {"$set": {"finished": True, "end": time.time()}})
                 finished_tsk.append(str(ix+1))
         if finished_tsk:
             return u"I'm pleased to claim that {0} finished tasks {1}, my lord!".format(who, ','.join(finished_tsk))
@@ -240,6 +246,11 @@ class ToDoUpdate(Update):
 
     def count(self, db):
         return str(db.find().count())
+
+    def completed(self, db):
+        cursor = db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("created")
+        tasks = [u"{0}. {1} ({2})".format(ix + 1, task['text'], Update.strtime(task["end"])) for (ix, task) in enumerate(cursor) if "end" in task]
+        return 'Completed tasks:\n' + '\n'.join(tasks) if tasks else "My lord, you have no finished tasks!"
 
     #TODO write more commands here
 
@@ -272,6 +283,8 @@ class ToDoUpdate(Update):
                 result = self.count(users_db)
             elif command == 'countg':
                 result = self.count(groups_db)
+            elif command == 'completed':
+                result = self.completed(tasks_db)
             return result
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ if __name__ == "__main__":
     groups_db = db['groups_db']
     tasks_db = db['tasks_db']
 
-    token = get_token('token_dev.txt')
+    token = get_token('token.txt')
 
     td_bot = TDB.ToDoBot(token)
     td_bot.set_update_listener(wrapper(td_bot, users_db, groups_db, tasks_db))
