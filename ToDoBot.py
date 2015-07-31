@@ -170,7 +170,7 @@ class ToDoBot(telebot.TeleBot, object):
             for t in tsks:
                 if t.strip():
                     new_tsk = TDO.Task.from_json(self.update, t, who)
-                    new_tsk.write(self.tasks_db)
+                    self.tasks_db.insert_one(new_tsk.__dict__)
                     count += 1
             return u"You wrote {0} task to {1}, my lord!".format(count, who) if count else "Please, provide non-empty task, my lord."
 
@@ -233,9 +233,18 @@ class ToDoBot(telebot.TeleBot, object):
 
         # Execute command
         command = TDO.Update.get_command(self.update)
+        # if command == 'cheer':
+        #     return self.cheer()
+        # else:
+        #     return '''Hey. Calm down!
+        #     The bot is under serious self-development and will be recovered within the next days.
+        #     Your data is backed up, so don't worry about your ToDo tasks.
+        #     We are adding more features and commands that takes a little bit refactoring.
+        #     In the meantime, we challenge you to guess a new command that is hidden from public.
+        #     It has 5 letters total (not including /) and starts with letter "c" and it is a verb.
+        #     You would get a special message if you guessed it!'''
         if command in self.commands:
             text = TDO.Update.get_text(self.update, command)
-            print 'text', text
             if command == 'list':
                 result = self.list()
             elif command == 'todo':
