@@ -149,7 +149,7 @@ class ToDoBot(telebot.TeleBot, object):
         Write /completed - to list completed tasks in your ToDo list. (new)
 
         The bot is under heavy self-development and in alpha release now. Official release soon.
-        Having more ideas or want to contribute? Write to ivanovserg990@gmail.com.
+        Having more ideas or want to contribute? Write a comment to http://storebot.me/bot/todobbot.
         '''
 
     def cheer(self):
@@ -193,7 +193,7 @@ class ToDoBot(telebot.TeleBot, object):
         try:
             numbers = map(int, ' '.join(words[1:]).split(','))
         except ValueError:
-            return u"I'm very sorry, my lord. Some of the som tasks are not numeric."
+            return u"I'm very sorry, my lord. Some of the tasks are not numeric."
 
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": who}).sort("created")
         finished_tsk = []
@@ -207,7 +207,7 @@ class ToDoBot(telebot.TeleBot, object):
         return u"I'm very sorry, my lord. All tasks {0} do not exist in the list of {1}.".format(','.join(map(str, numbers)), who)
 
     def count(self, db):
-        return str(db.find().count())
+        return str(db.count())
 
     def completed(self):
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("created")
@@ -233,16 +233,6 @@ class ToDoBot(telebot.TeleBot, object):
 
         # Execute command
         command = TDO.Update.get_command(self.update)
-        # if command == 'cheer':
-        #     return self.cheer()
-        # else:
-        #     return '''Hey. Calm down!
-        #     The bot is under serious self-development and will be recovered within the next days.
-        #     Your data is backed up, so don't worry about your ToDo tasks.
-        #     We are adding more features and commands that takes a little bit refactoring.
-        #     In the meantime, we challenge you to guess a new command that is hidden from public.
-        #     It has 5 letters total (not including /) and starts with letter "c" and it is a verb.
-        #     You would get a special message if you guessed it!'''
         if command in self.commands:
             text = TDO.Update.get_text(self.update, command)
             if command == 'list':

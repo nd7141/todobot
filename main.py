@@ -12,6 +12,12 @@ def get_token(filename):
     with open(filename) as f:
         return f.readlines()[0]
 
+def send_update(bot, users_db, groups_db, message):
+    for user in users_db.find():
+        bot.send_message(user['user_id'], message)
+    for group in groups_db.find():
+        bot.send_message(group['group_id'], message)
+
 if __name__ == "__main__":
 
     # setup databases
@@ -26,6 +32,14 @@ if __name__ == "__main__":
     td_bot = TDB.ToDoBot(token, users_db, groups_db, tasks_db)
     td_bot.set_update_listener()
     td_bot.polling()
+
+    if os.path.isfile('update.txt'):
+        with open('update.txt') as f:
+            message = f.read()
+        os.remove('update.txt')
+        send_update(td_bot, users_db, groups_db, message)    
+
+
 
     period = 3600 # seconds to relaunch script
     start = time.time()
