@@ -4,17 +4,19 @@ from __future__ import division
 __author__ = 'sivanov'
 import telebot, threading, traceback, time, os
 import ToDoObjects as TDO
+import pyowm
 
 class ToDoBot(telebot.TeleBot, object):
     """ ToDoBot overrides the functionality of get_update function of TeleBot.
     In addition to getting array of updates (messages), we also get User and (optional) Group object.
     """
 
-    def __init__(self, token, users_db, groups_db, tasks_db):
+    def __init__(self, token, owm_token, users_db, groups_db, tasks_db):
         super(self.__class__, self).__init__(token)
         self.users_db = users_db
         self.groups_db = groups_db
         self.tasks_db = tasks_db
+        self.owm = pyowm.OWM(owm_token)
 
     def get_update(self):
         new_messages = []
@@ -219,12 +221,21 @@ class ToDoBot(telebot.TeleBot, object):
                 i += 1
         return 'Completed tasks:\n' + '\n'.join(tasks) if tasks else "My lord, you have no finished tasks!"
 
+    def weather(self, name):
+        observation = self.owm.weather_at_place(name, limit=1)
+        if observation:
+            w = observation.get_weather()
+            return str(w.get_temperature('celsius'))
+        else:
+            return 'No weather for this place, my lord.'
+
     #TODO write more commands here
 
     def execute(self):
         self.commands = ['todo', 'list', 'done', 'completed',
                          'help', 'start', 'cheer',
                          'make', 'for', 'over',
+                         'weather',
                          'countu', 'countg']
 
         # Write new user, group into database
@@ -257,4 +268,6 @@ class ToDoBot(telebot.TeleBot, object):
                 result = self.count(self.groups_db)
             elif command == 'completed':
                 result = self.completed()
+            elif command == 'weather':
+                result = self.weather(text)
             return result
