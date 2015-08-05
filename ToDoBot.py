@@ -244,7 +244,10 @@ class ToDoBot(telebot.TeleBot, object):
 
         # Execute command
         command = TDO.Update.get_command(self.update)
-        if command in self.commands:
+        pos = command.find("@todobbot")
+        if pos != -1:
+            command = command[:pos]
+        if command in self.commands or command:
             text = TDO.Update.get_text(self.update, command)
             if command == 'list':
                 result = self.list()
