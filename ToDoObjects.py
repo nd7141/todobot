@@ -105,8 +105,10 @@ class Update(object):
             return update['text'].split()[0][1:].lower()
 
     @staticmethod
-    def get_text(update, command):
-        return update['text'][1 + len(command):]
+    def get_text(update, command, pos):
+        if pos != -1:
+            return update['text'][10 + len(command):]
+        return update['text'][1 + len(command) :]
 
     @staticmethod
     def strtime(unix):

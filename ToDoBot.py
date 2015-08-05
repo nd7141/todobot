@@ -244,11 +244,12 @@ class ToDoBot(telebot.TeleBot, object):
 
         # Execute command
         command = TDO.Update.get_command(self.update)
-        pos = command.find("@todobbot")
-        if pos != -1:
+        pos = -1
+        if command and command.find("@todobbot") != -1:
+            pos = command.find("@todobbot")
             command = command[:pos]
-        if command in self.commands or command:
-            text = TDO.Update.get_text(self.update, command)
+        if command in self.commands:
+            text = TDO.Update.get_text(self.update, command, pos)
             if command == 'list':
                 result = self.list()
             elif command == 'todo':
@@ -274,3 +275,5 @@ class ToDoBot(telebot.TeleBot, object):
             elif command == 'weather':
                 result = self.weather(text)
             return result
+        elif command:
+            return 'Provide one of the recognized tasks, my lord.'
