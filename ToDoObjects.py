@@ -55,6 +55,7 @@ class User(Jsonish):
         self.created = created
         self.last_name = last_name
         self.username = username
+        self.info = {'city': ''}
 
 class Group(Jsonish):
     @classmethod
@@ -105,9 +106,7 @@ class Update(object):
             return update['text'].split()[0][1:].lower()
 
     @staticmethod
-    def get_text(update, command, pos):
-        if pos != -1:
-            return update['text'][10 + len(command):]
+    def get_text(update, command):
         return update['text'][1 + len(command) :]
 
     @staticmethod

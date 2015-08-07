@@ -5,18 +5,22 @@ __author__ = 'sivanov'
 import telebot, threading, traceback, time, os
 import ToDoObjects as TDO
 import pyowm
+import urllib
+from geopy import geocoders
+import pprint
 
 class ToDoBot(telebot.TeleBot, object):
     """ ToDoBot overrides the functionality of get_update function of TeleBot.
     In addition to getting array of updates (messages), we also get User and (optional) Group object.
     """
 
-    def __init__(self, token, owm_token, users_db, groups_db, tasks_db):
+    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, geopy_user):
         super(self.__class__, self).__init__(token)
         self.users_db = users_db
         self.groups_db = groups_db
         self.tasks_db = tasks_db
         self.owm = pyowm.OWM(owm_token)
+        self.geopy_user = geopy_user
 
     def get_update(self):
         new_messages = []
@@ -127,9 +131,8 @@ class ToDoBot(telebot.TeleBot, object):
                           {"$set": {"finished": True, "end": time.time()}})
                 finished_tsk.append(str(ix+1))
         if finished_tsk:
-            return "I'm pleased to claim that you finished task {0}, my lord!".format(', '.join(finished_tsk))
+            return "I'm pleased to claim that you finished task {0}, my lord!\n {1}".format(', '.join(finished_tsk), self.list())
         return "I'm very sorry, my lord. All of the tasks {0} do not exist.".format(', '.join(map(str, numbers)))
-
 
     def todo(self, text):
         tasks = text.split(os.linesep)
@@ -139,7 +142,7 @@ class ToDoBot(telebot.TeleBot, object):
                 new_tsk = TDO.Task.from_json(self.update, t)
                 self.tasks_db.insert_one(new_tsk.__dict__)
                 count += 1
-        return "You wrote {0} task, my lord!".format(count) if count else "Please, provide non-empty task, my lord."
+        return "You wrote {0} task, my lord!\n {1}".format(count, self.list()) if count else "Please, provide non-empty task, my lord."
 
     def help(self):
         return ''' This is a Telegram ToDo bot, my lord.
@@ -150,7 +153,6 @@ class ToDoBot(telebot.TeleBot, object):
         Write /done task1, task2, ... - to finish the task.
         Write /completed - to list completed tasks in your ToDo list. (new)
 
-        The bot is under heavy self-development and in alpha release now. Official release soon.
         Having more ideas or want to contribute? Write a comment to http://storebot.me/bot/todobbot.
         '''
 
@@ -222,12 +224,43 @@ class ToDoBot(telebot.TeleBot, object):
         return 'Completed tasks:\n' + '\n'.join(tasks) if tasks else "My lord, you have no finished tasks!"
 
     def weather(self, name):
-        observation = self.owm.weather_at_place(name, limit=1)
+        try:
+            url_place = urllib.quote(name.encode('utf-8'))
+            observation = self.owm.weather_at_place(url_place)
+        except Exception as e:
+            print e
+            return 'No weather for this place, my lord.'
         if observation:
             w = observation.get_weather()
-            return str(w.get_temperature('celsius'))
+            return u"{0} {1}".format((w.get_temperature('celsius')['temp']), u"\u2103")
         else:
             return 'No weather for this place, my lord.'
+
+    def get_city(self, name):
+        err_s = 'Provide the name of your city, my lord.'
+        if len(name) > 1:
+            print name
+            gn = geocoders.GeoNames(username=self.geopy_user)
+            g = gn.geocode(name)
+            if g:
+                try:
+                    city = g.raw['name']
+                except:
+                    return err_s
+                self.users_db.update({"user_id": self.update["from"]["id"]},
+                    {"$set": {"info.city": city}})
+                return 'Updated your current city, my lord'
+            else:
+                return err_s
+        else:
+            return err_s
+
+    def get_info(self):
+        s = "Name: {0}\nID: {1}\nCity: {2}\n"
+        user = self.users_db.find_one({"user_id": self.update["from"]["id"]})
+        s = s.format(user['first_name'] + ' ' + user['last_name'], user['user_id'], user['info']['city'])
+        return s
+
 
     #TODO write more commands here
 
@@ -235,8 +268,10 @@ class ToDoBot(telebot.TeleBot, object):
         self.commands = ['todo', 'list', 'done', 'completed',
                          'help', 'start', 'cheer',
                          'make', 'for', 'over',
-                         'weather',
+                         'weather', 'city', 'me',
                          'countu', 'countg']
+
+        self.commands += map(lambda s: s + "@todobbot", self.commands)
 
         # Write new user, group into database
         self.write_user()
@@ -244,36 +279,36 @@ class ToDoBot(telebot.TeleBot, object):
 
         # Execute command
         command = TDO.Update.get_command(self.update)
-        pos = -1
-        if command and command.find("@todobbot") != -1:
-            pos = command.find("@todobbot")
-            command = command[:pos]
         if command in self.commands:
-            text = TDO.Update.get_text(self.update, command, pos)
-            if command == 'list':
+            text = TDO.Update.get_text(self.update, command)
+            if command.startswith('list'):
                 result = self.list()
-            elif command == 'todo':
+            elif command.startswith('todo'):
                 result = self.todo(text)
-            elif command == 'done':
+            elif command.startswith('done'):
                 result = self.done(text)
-            elif command == 'help' or command == 'start':
+            elif command.startswith('help') or command.startswith('start'):
                 result = self.help()
-            elif command == 'cheer':
+            elif command.startswith('cheer'):
                 result = self.cheer()
-            elif command == 'make':
+            elif command.startswith('make'):
                 result = self.make(text)
-            elif command == 'for':
+            elif command.startswith('for'):
                 result = self.for_f(text)
-            elif command == 'over':
+            elif command.startswith('over'):
                 result = self.over(text)
-            elif command == 'countu':
+            elif command.startswith('countu'):
                 result = self.count(self.users_db)
-            elif command == 'countg':
+            elif command.startswith('countg'):
                 result = self.count(self.groups_db)
-            elif command == 'completed':
+            elif command.startswith('completed'):
                 result = self.completed()
-            elif command == 'weather':
+            elif command.startswith('weather'):
                 result = self.weather(text)
+            elif command.startswith('city'):
+                result = self.get_city(text)
+            elif command.startswith('me'):
+                result = self.get_info()
             return result
         elif command:
             return 'Provide one of the recognized tasks, my lord.'

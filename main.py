@@ -29,11 +29,14 @@ if __name__ == "__main__":
 
     token = get_token('token.txt')
     owm_token = get_token('owm_token.txt')
+    geopy_user = get_token('geopy_username.txt')
 
-    td_bot = TDB.ToDoBot(token, owm_token, users_db, groups_db, tasks_db)
+    td_bot = TDB.ToDoBot(token, owm_token, users_db, groups_db, tasks_db, geopy_user)
     td_bot.set_update_listener()
     td_bot.polling()
 
+
+    # send update if file exists
     if os.path.isfile('update.txt'):
         with open('update.txt') as f:
             message = f.read()
