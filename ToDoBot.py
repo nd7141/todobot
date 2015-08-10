@@ -8,19 +8,21 @@ import pyowm
 import urllib
 from geopy import geocoders
 import pprint
+import botan
 
 class ToDoBot(telebot.TeleBot, object):
     """ ToDoBot overrides the functionality of get_update function of TeleBot.
     In addition to getting array of updates (messages), we also get User and (optional) Group object.
     """
 
-    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, geopy_user):
+    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, geopy_user, botan_token):
         super(self.__class__, self).__init__(token)
         self.users_db = users_db
         self.groups_db = groups_db
         self.tasks_db = tasks_db
         self.owm = pyowm.OWM(owm_token)
         self.geopy_user = geopy_user
+        self.botan_token = botan_token
 
     def get_update(self):
         new_messages = []
@@ -239,7 +241,6 @@ class ToDoBot(telebot.TeleBot, object):
     def get_city(self, name):
         err_s = 'Provide the name of your city, my lord.'
         if len(name) > 1:
-            print name
             gn = geocoders.GeoNames(username=self.geopy_user)
             g = gn.geocode(name)
             if g:
@@ -257,8 +258,14 @@ class ToDoBot(telebot.TeleBot, object):
 
     def get_info(self):
         s = "Name: {0}\nID: {1}\nCity: {2}\n"
-        user = self.users_db.find_one({"user_id": self.update["from"]["id"]})
-        s = s.format(user['first_name'] + ' ' + user['last_name'], user['user_id'], user['info']['city'])
+        count = 0
+        for user in self.users_db.find({"user_id": self.update["from"]["id"]}):
+            count += 1
+            city = 'Use /city command to specify your city, my lord.'
+            if 'info' in user:
+                if 'city' in user['info']:
+                    city = user['info']['city']
+            s = s.format(user['first_name'] + ' ' + user['last_name'], user['user_id'], city)
         return s
 
 
@@ -272,6 +279,8 @@ class ToDoBot(telebot.TeleBot, object):
                          'countu', 'countg']
 
         self.commands += map(lambda s: s + "@todobbot", self.commands)
+
+        botan.track(self.botan_token, self.update['from']['id'], {}, 'Search')
 
         # Write new user, group into database
         self.write_user()
