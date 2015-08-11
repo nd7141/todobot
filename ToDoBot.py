@@ -118,23 +118,23 @@ class ToDoBot(telebot.TeleBot, object):
     def list(self):
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
-        return 'Common list:\n' + '\n'.join(tasks) if tasks else "My lord, you have no tasks!"
+        return u'Common list:\n' + '\n'.join(tasks) if tasks else "My lord, you have no tasks!"
 
     def done(self, numbers):
         try:
             numbers = map(int, numbers.split(','))
         except ValueError:
-            return "I'm very sorry, my lord. Some of the tasks do not exist."
+            return u"I'm very sorry, my lord. Some of the tasks do not exist."
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': ''}).sort("created")
         finished_tsk = []
         for ix, task in enumerate(cursor):
             if ix + 1 in numbers:
                 self.tasks_db.update({"_id": task["_id"]},
                           {"$set": {"finished": True, "end": time.time()}})
-                finished_tsk.append(str(ix+1))
+                finished_tsk.append('"{0}. {1}"'.format(ix+1, task['text']))
         if finished_tsk:
-            return "I'm pleased to claim that you finished task {0}, my lord!\n {1}".format(', '.join(finished_tsk), self.list())
-        return "I'm very sorry, my lord. All of the tasks {0} do not exist.".format(', '.join(map(str, numbers)))
+            return u"I'm pleased to claim that you finished task {0}, my lord!\n {1}".format('; '.join(finished_tsk), self.list())
+        return u"I'm very sorry, my lord. All of the tasks {0} do not exist.".format(', '.join(map(str, numbers)))
 
     def todo(self, text):
         tasks = text.split(os.linesep)
@@ -144,7 +144,7 @@ class ToDoBot(telebot.TeleBot, object):
                 new_tsk = TDO.Task.from_json(self.update, t)
                 self.tasks_db.insert_one(new_tsk.__dict__)
                 count += 1
-        return "You wrote {0} task, my lord!\n {1}".format(count, self.list()) if count else "Please, provide non-empty task, my lord."
+        return u"You wrote {0} task, my lord!\n {1}".format(count, self.list()) if count else "Please, provide non-empty task, my lord."
 
     def help(self):
         return ''' This is a Telegram ToDo bot, my lord.
@@ -280,7 +280,7 @@ class ToDoBot(telebot.TeleBot, object):
 
         self.commands += map(lambda s: s + "@todobbot", self.commands)
 
-        botan.track(self.botan_token, self.update['from']['id'], {}, 'Search')
+        print botan.track(self.botan_token, int(self.update['from']['id']), {}, 'Search')
 
         # Write new user, group into database
         self.write_user()
