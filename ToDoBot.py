@@ -118,11 +118,16 @@ class ToDoBot(telebot.TeleBot, object):
     def list(self, address):
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": address}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
-        return u'Common list:\n' + '\n'.join(tasks) if tasks else "My lord, there is no tasks in {} list!".format(address)
+        return u'{} list:\n'.format(address if address else "Group") + '\n'.join(tasks) if tasks else u"My lord, there is no tasks in {} list!".format(address)
 
     def done(self, text, address):
         if address:
             numbers = text[len(address) + 2:]
+            if numbers.strip().startswith("#all"):
+                for task in self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': address}):
+                    self.tasks_db.update({"_id": task["_id"]},
+                          {"$set": {"finished": True, "end": time.time()}})
+                return u"I removed {} list, my lord".format(address)
         else:
             numbers = text
         try:
@@ -135,26 +140,26 @@ class ToDoBot(telebot.TeleBot, object):
             if ix + 1 in numbers:
                 self.tasks_db.update({"_id": task["_id"]},
                           {"$set": {"finished": True, "end": time.time()}})
-                finished_tsk.append('"{0}. {1}"'.format(ix+1, task['text']))
+                finished_tsk.append(u'"{0}. {1}"'.format(ix+1, task['text']))
         if finished_tsk:
             return u"I'm pleased to claim that you finished {0}, my lord!\n {1}".format('; '.join(finished_tsk), self.list(address))
         return u"I'm very sorry, my lord. All of the tasks {0} do not exist.".format(', '.join(map(str, numbers)))
 
-    def todo(self, text):
-        tasks = text.split(os.linesep)
+    def todo(self, text, address):
+        tasks = text[len(address) + 2:].split(os.linesep)
         count = 0
-        who = 'Common'
+        out = []
+
         for t in tasks:
             if t.strip():
                 words = t.split()
-                if words[0].startswith("@") and len(words[0]) > 1:
-                    who = words[0][1:]
-                    content = " ".join(words[1:])
-                    new_tsk = TDO.Task.from_json(self.update, content, who)
-                else:
-                    new_tsk = TDO.Task.from_json(self.update, t)
+                new_tsk = TDO.Task.from_json(self.update, t, address)
+                out.append(u'"{0}..."'.format(words[0]))
                 self.tasks_db.insert_one(new_tsk.__dict__)
                 count += 1
+
+
+        return u'Saved {0} to {1} list'.format(', '.join(out), address if address else 'Group')
         return u"You wrote {0} to {1} list, my lord!\n {2}".format(count, who, self.list(who)) if count else "Please, provide non-empty task, my lord."
 
     def help(self):
@@ -283,10 +288,10 @@ class ToDoBot(telebot.TeleBot, object):
         todos = dict()
         for task in self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False}):
             if not task['to_id']:
-                todos['Common'] = todos.setdefault('Common', 0) + 1
+                todos['Group'] = todos.setdefault('Group', 0) + 1
             else:
                 todos[task['to_id']] = todos.setdefault(task['to_id'], 0) + 1
-        return "\n".join(["{}. {} ({})".format(i+1, k, v) for (i,(k,v)) in enumerate(todos.iteritems())])
+        return u"\n".join([u"{}. {} ({})".format(i+1, k, v) for (i,(k,v)) in enumerate(todos.iteritems())])
 
 
     #TODO write more commands here
@@ -312,17 +317,17 @@ class ToDoBot(telebot.TeleBot, object):
 
         # Execute command
         command = TDO.Update.get_command(self.update)
-        if command in self.commands or command :
+        if command in self.commands:
             text = TDO.Update.get_text(self.update, command)
             words = text.split()
-            if len(words) and words[0].startswith("@") and len(words[0]) > 1 and words[0][1:] != "Common":
+            if len(words) and words[0].startswith("@") and len(words[0]) > 1 and words[0][1:] != "Group":
                 address = words[0][1:]
             else:
                 address = ''
             if command in ['list', 'list@todobbot', 'l']:
                 result = self.list(address)
             elif command in ['todo', 'todo@todobbot', 't']:
-                result = self.todo(text)
+                result = self.todo(text, address)
             elif command in ['done', 'done@todobbot', 'd']:
                 result = self.done(text, address)
             elif command in ['help', 'start', 'help@todobbot' 'start@todobbot', 'h', 's', 'h@todobbot', 's@todobbot']:
