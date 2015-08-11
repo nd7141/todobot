@@ -118,14 +118,18 @@ class ToDoBot(telebot.TeleBot, object):
     def list(self, address):
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": address}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
-        return u'Common list:\n' + '\n'.join(tasks) if tasks else "My lord, you have no tasks!"
+        return u'Common list:\n' + '\n'.join(tasks) if tasks else "My lord, there is no tasks in {} list!".format(address)
 
-    def done(self, numbers):
+    def done(self, text, address):
+        if address:
+            numbers = text[len(address) + 2:]
+        else:
+            numbers = text
         try:
             numbers = map(int, numbers.split(','))
         except ValueError:
             return u"I'm very sorry, my lord. Some of the tasks do not exist."
-        cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': ''}).sort("created")
+        cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': address}).sort("created")
         finished_tsk = []
         for ix, task in enumerate(cursor):
             if ix + 1 in numbers:
@@ -133,7 +137,7 @@ class ToDoBot(telebot.TeleBot, object):
                           {"$set": {"finished": True, "end": time.time()}})
                 finished_tsk.append('"{0}. {1}"'.format(ix+1, task['text']))
         if finished_tsk:
-            return u"I'm pleased to claim that you finished task {0}, my lord!\n {1}".format('; '.join(finished_tsk), self.list())
+            return u"I'm pleased to claim that you finished {0}, my lord!\n {1}".format('; '.join(finished_tsk), self.list(address))
         return u"I'm very sorry, my lord. All of the tasks {0} do not exist.".format(', '.join(map(str, numbers)))
 
     def todo(self, text):
@@ -288,10 +292,14 @@ class ToDoBot(telebot.TeleBot, object):
     #TODO write more commands here
 
     def execute(self):
-        self.commands = ['todo', 'list', 'done', 'completed', 'all',
-                         'help', 'start', 'cheer',
+        self.commands = ['todo', 't',
+                         'list', 'l',
+                         'done', 'd',
+                         'completed',
+                         'start', 'help', 's', 'h',
+                         'all',
                          'make', 'for', 'over',
-                         'weather', 'city', 'me',
+                         'weather', 'city', 'me', 'cheer',
                          'countu', 'countg']
 
         self.commands += map(lambda s: s + "@todobbot", self.commands)
@@ -304,20 +312,20 @@ class ToDoBot(telebot.TeleBot, object):
 
         # Execute command
         command = TDO.Update.get_command(self.update)
-        if command in self.commands:
+        if command in self.commands or command :
             text = TDO.Update.get_text(self.update, command)
             words = text.split()
             if len(words) and words[0].startswith("@") and len(words[0]) > 1 and words[0][1:] != "Common":
                 address = words[0][1:]
             else:
                 address = ''
-            if command.startswith('list'):
+            if command in ['list', 'list@todobbot', 'l']:
                 result = self.list(address)
-            elif command.startswith('todo'):
+            elif command in ['todo', 'todo@todobbot', 't']:
                 result = self.todo(text)
-            elif command.startswith('done'):
-                result = self.done(text)
-            elif command.startswith('help') or command.startswith('start'):
+            elif command in ['done', 'done@todobbot', 'd']:
+                result = self.done(text, address)
+            elif command in ['help', 'start', 'help@todobbot' 'start@todobbot', 'h', 's', 'h@todobbot', 's@todobbot']:
                 result = self.help()
             elif command.startswith('cheer'):
                 result = self.cheer()
