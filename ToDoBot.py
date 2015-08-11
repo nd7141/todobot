@@ -115,8 +115,8 @@ class ToDoBot(telebot.TeleBot, object):
 
     # Commands for bot
 
-    def list(self):
-        cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
+    def list(self, address):
+        cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": address}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
         return u'Common list:\n' + '\n'.join(tasks) if tasks else "My lord, you have no tasks!"
 
@@ -139,12 +139,19 @@ class ToDoBot(telebot.TeleBot, object):
     def todo(self, text):
         tasks = text.split(os.linesep)
         count = 0
+        who = 'Common'
         for t in tasks:
             if t.strip():
-                new_tsk = TDO.Task.from_json(self.update, t)
+                words = t.split()
+                if words[0].startswith("@") and len(words[0]) > 1:
+                    who = words[0][1:]
+                    content = " ".join(words[1:])
+                    new_tsk = TDO.Task.from_json(self.update, content, who)
+                else:
+                    new_tsk = TDO.Task.from_json(self.update, t)
                 self.tasks_db.insert_one(new_tsk.__dict__)
                 count += 1
-        return u"You wrote {0} task, my lord!\n {1}".format(count, self.list()) if count else "Please, provide non-empty task, my lord."
+        return u"You wrote {0} to {1} list, my lord!\n {2}".format(count, who, self.list(who)) if count else "Please, provide non-empty task, my lord."
 
     def help(self):
         return ''' This is a Telegram ToDo bot, my lord.
@@ -275,7 +282,7 @@ class ToDoBot(telebot.TeleBot, object):
                 todos['Common'] = todos.setdefault('Common', 0) + 1
             else:
                 todos[task['to_id']] = todos.setdefault(task['to_id'], 0) + 1
-        return "\n".join(["{} ({})".format(k, v) for (k,v) in todos.iteritems()])
+        return "\n".join(["{}. {} ({})".format(i+1, k, v) for (i,(k,v)) in enumerate(todos.iteritems())])
 
 
     #TODO write more commands here
@@ -299,8 +306,13 @@ class ToDoBot(telebot.TeleBot, object):
         command = TDO.Update.get_command(self.update)
         if command in self.commands:
             text = TDO.Update.get_text(self.update, command)
+            words = text.split()
+            if len(words) and words[0].startswith("@") and len(words[0]) > 1 and words[0][1:] != "Common":
+                address = words[0][1:]
+            else:
+                address = ''
             if command.startswith('list'):
-                result = self.list()
+                result = self.list(address)
             elif command.startswith('todo'):
                 result = self.todo(text)
             elif command.startswith('done'):
