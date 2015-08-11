@@ -268,11 +268,20 @@ class ToDoBot(telebot.TeleBot, object):
             s = s.format(user['first_name'] + ' ' + user['last_name'], user['user_id'], city)
         return s
 
+    def list_all(self):
+        todos = dict()
+        for task in self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False}):
+            if not task['to_id']:
+                todos['Common'] = todos.setdefault('Common', 0) + 1
+            else:
+                todos[task['to_id']] = todos.setdefault(task['to_id'], 0) + 1
+        return "\n".join(["{} ({})".format(k, v) for (k,v) in todos.iteritems()])
+
 
     #TODO write more commands here
 
     def execute(self):
-        self.commands = ['todo', 'list', 'done', 'completed',
+        self.commands = ['todo', 'list', 'done', 'completed', 'all',
                          'help', 'start', 'cheer',
                          'make', 'for', 'over',
                          'weather', 'city', 'me',
@@ -318,6 +327,8 @@ class ToDoBot(telebot.TeleBot, object):
                 result = self.get_city(text)
             elif command.startswith('me'):
                 result = self.get_info()
+            elif command.startswith('all'):
+                result = self.list_all()
             return result
         elif command:
             return 'Provide one of the recognized tasks, my lord.'
