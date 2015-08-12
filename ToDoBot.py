@@ -118,7 +118,7 @@ class ToDoBot(telebot.TeleBot, object):
     def list(self, address):
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": address}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
-        return u'{} list:\n'.format(address if address else "Group") + '\n'.join(tasks) if tasks else u"My lord, there is no tasks in {} list!".format(address)
+        return u'{} list:\n'.format(address if address else "Group") + '\n'.join(tasks) if tasks else u"There is no tasks in {} list!".format(address)
 
     def done(self, text, address):
         if address:
@@ -127,13 +127,13 @@ class ToDoBot(telebot.TeleBot, object):
                 for task in self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': address}):
                     self.tasks_db.update({"_id": task["_id"]},
                           {"$set": {"finished": True, "end": time.time()}})
-                return u"I removed {} list, my lord".format(address)
+                return u"I removed {} list.".format(address)
         else:
             numbers = text
         try:
             numbers = map(int, numbers.split(','))
         except ValueError:
-            return u"I'm very sorry, my lord. Some of the tasks do not exist."
+            return u"I'm very sorry. Some of the tasks do not exist."
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': address}).sort("created")
         finished_tsk = []
         for ix, task in enumerate(cursor):
@@ -142,11 +142,14 @@ class ToDoBot(telebot.TeleBot, object):
                           {"$set": {"finished": True, "end": time.time()}})
                 finished_tsk.append(u'"{0}. {1}"'.format(ix+1, task['text']))
         if finished_tsk:
-            return u"I'm pleased to claim that you finished {0}, my lord!\n {1}".format('; '.join(finished_tsk), self.list(address))
-        return u"I'm very sorry, my lord. All of the tasks {0} do not exist.".format(', '.join(map(str, numbers)))
+            return u"I'm pleased to claim that you finished {0}!\n {1}".format('; '.join(finished_tsk), self.list(address))
+        return u"I'm very sorry. All of the tasks {0} do not exist.".format(', '.join(map(str, numbers)))
 
     def todo(self, text, address):
-        tasks = text[len(address) + 2:].split(os.linesep)
+        if address:
+            tasks = text[len(address) + 2:].split(os.linesep)
+        else:
+            tasks = text.split(os.linesep)
         count = 0
         out = []
 
@@ -160,10 +163,10 @@ class ToDoBot(telebot.TeleBot, object):
 
 
         return u'Saved {0} to {1} list'.format(', '.join(out), address if address else 'Group')
-        return u"You wrote {0} to {1} list, my lord!\n {2}".format(count, who, self.list(who)) if count else "Please, provide non-empty task, my lord."
+        return u"You wrote {0} to {1} list, my lord!\n {2}".format(count, who, self.list(who)) if count else "Please, provide non-empty task."
 
     def help(self):
-        return ''' This is a Telegram ToDo bot, my lord.
+        return ''' This is a Telegram ToDo bot.
 
         Write /help - to get this message.
         Write /todo task - to write another task. You can provide multiple tasks, where each task in a new line.
@@ -182,10 +185,10 @@ class ToDoBot(telebot.TeleBot, object):
         try:
             who = lines[0].split()[0]
         except IndexError:
-            return "Please provide to whom you want assign a task, my lord."
+            return "Please provide to whom you want assign a task."
 
         if lines[0] < 2:
-            return "Please provide a task, my lord."
+            return "Please provide a task."
         else:
             tsks = [' '.join(lines[0].split()[1:])] + lines[1:]
             count = 0
@@ -194,14 +197,14 @@ class ToDoBot(telebot.TeleBot, object):
                     new_tsk = TDO.Task.from_json(self.update, t, who)
                     self.tasks_db.insert_one(new_tsk.__dict__)
                     count += 1
-            return u"You wrote {0} task to {1}, my lord!".format(count, who) if count else "Please, provide non-empty task, my lord."
+            return u"You wrote {0} task to {1}, my lord!".format(count, who) if count else "Please, provide non-empty task."
 
     def for_f(self, text):
         words = text.split()
         try:
             who = words[0]
         except IndexError:
-            return "Please provide for whom you want to show ToDo list, my lord."
+            return "Please provide for whom you want to show ToDo list."
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": who}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
         return who + ':\n' + '\n'.join(tasks) if tasks else u"{0} has no tasks!".format(who)
@@ -211,11 +214,11 @@ class ToDoBot(telebot.TeleBot, object):
         try:
             who = words[0]
         except IndexError:
-            return "Please provide for whom you want to remove a task, my lord."
+            return "Please provide for whom you want to remove a task."
         try:
             numbers = map(int, ' '.join(words[1:]).split(','))
         except ValueError:
-            return u"I'm very sorry, my lord. Some of the tasks are not numeric."
+            return u"I'm very sorry. Some of the tasks are not numeric."
 
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": who}).sort("created")
         finished_tsk = []
@@ -225,8 +228,8 @@ class ToDoBot(telebot.TeleBot, object):
                           {"$set": {"finished": True, "end": time.time()}})
                 finished_tsk.append(str(ix+1))
         if finished_tsk:
-            return u"I'm pleased to claim that {0} finished tasks {1}, my lord!".format(who, ','.join(finished_tsk))
-        return u"I'm very sorry, my lord. All tasks {0} do not exist in the list of {1}.".format(','.join(map(str, numbers)), who)
+            return u"I'm pleased to claim that {0} finished tasks {1}!".format(who, ','.join(finished_tsk))
+        return u"I'm very sorry. Tasks {0} do not exist in the list of {1}.".format(','.join(map(str, numbers)), who)
 
     def count(self, db):
         return str(db.count())
@@ -239,7 +242,7 @@ class ToDoBot(telebot.TeleBot, object):
             if "end" in task:
                 tasks.append(u"{0}. {1} ({2})".format(i + 1, task['text'], TDO.Update.strtime(task["end"])))
                 i += 1
-        return 'Completed tasks:\n' + '\n'.join(tasks) if tasks else "My lord, you have no finished tasks!"
+        return 'Completed tasks:\n' + '\n'.join(tasks) if tasks else "You have no finished tasks!"
 
     def weather(self, name):
         try:
@@ -247,15 +250,15 @@ class ToDoBot(telebot.TeleBot, object):
             observation = self.owm.weather_at_place(url_place)
         except Exception as e:
             print e
-            return 'No weather for this place, my lord.'
+            return 'No weather for this place!'
         if observation:
             w = observation.get_weather()
             return u"{0} {1}".format((w.get_temperature('celsius')['temp']), u"\u2103")
         else:
-            return 'No weather for this place, my lord.'
+            return 'No weather for this place!'
 
     def get_city(self, name):
-        err_s = 'Provide the name of your city, my lord.'
+        err_s = 'Provide the name of your city!'
         if len(name) > 1:
             gn = geocoders.GeoNames(username=self.geopy_user)
             g = gn.geocode(name)
@@ -266,7 +269,7 @@ class ToDoBot(telebot.TeleBot, object):
                     return err_s
                 self.users_db.update({"user_id": self.update["from"]["id"]},
                     {"$set": {"info.city": city}})
-                return 'Updated your current city, my lord'
+                return 'Updated your current city!'
             else:
                 return err_s
         else:
@@ -277,7 +280,7 @@ class ToDoBot(telebot.TeleBot, object):
         count = 0
         for user in self.users_db.find({"user_id": self.update["from"]["id"]}):
             count += 1
-            city = 'Use /city command to specify your city, my lord.'
+            city = 'Use /city command to specify your city!'
             if 'info' in user:
                 if 'city' in user['info']:
                     city = user['info']['city']
@@ -355,5 +358,3 @@ class ToDoBot(telebot.TeleBot, object):
             elif command.startswith('all'):
                 result = self.list_all()
             return result
-        elif command:
-            return 'Provide one of the recognized tasks, my lord.'

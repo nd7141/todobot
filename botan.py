@@ -19,10 +19,13 @@ def track(token, uid, message, name = 'Message'):
     try:
         r = requests.post(url, data=json.dumps(message), headers=headers)
         return r.json()
+    except ValueError:
+        print 'Botan post request', r
+        return 'Botan failed', False
     except requests.exceptions.Timeout:
         # set up for a retry, or continue in a retry loop
-        return False
+        return 'Botan failed:', False
     except requests.exceptions.RequestException as e:
         # catastrophic error
         print e
-        return False
+        return 'Botan failed:', False
