@@ -312,7 +312,10 @@ class ToDoBot(telebot.TeleBot, object):
 
         self.commands += map(lambda s: s + "@todobbot", self.commands)
 
-        print botan.track(self.botan_token, int(self.update['from']['id']), {}, 'Search')
+
+        print 'Sent user to botan:', botan.track(self.botan_token, self.update['from']['id'], self.update, 'User')
+        if "title" in self.update["chat"]:
+            print 'Sent group to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, 'Group')
 
         # Write new user, group into database
         self.write_user()
