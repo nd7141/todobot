@@ -313,9 +313,12 @@ class ToDoBot(telebot.TeleBot, object):
         self.commands += map(lambda s: s + "@todobbot", self.commands)
 
 
-        print 'Sent user to botan:', botan.track(self.botan_token, self.update['from']['id'], self.update, 'User')
-        if "title" in self.update["chat"]:
+        if "title" not in self.update["chat"]:
+            print 'Sent user to botan:', botan.track(self.botan_token, self.update['from']['id'], self.update, 'User')
+        else:
             print 'Sent group to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, 'Group')
+
+
 
         # Write new user, group into database
         self.write_user()
@@ -336,7 +339,7 @@ class ToDoBot(telebot.TeleBot, object):
                 result = self.todo(text, address)
             elif command in ['done', 'done@todobbot', 'd']:
                 result = self.done(text, address)
-            elif command in ['help', 'start', 'help@todobbot' 'start@todobbot', 'h', 's', 'h@todobbot', 's@todobbot']:
+            elif command in ['help', 'start', 'help@todobbot', 'start@todobbot', 'h', 's', 'h@todobbot', 's@todobbot']:
                 result = self.help()
             elif command.startswith('cheer'):
                 result = self.cheer()
