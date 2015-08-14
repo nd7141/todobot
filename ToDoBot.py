@@ -161,9 +161,8 @@ class ToDoBot(telebot.TeleBot, object):
                 self.tasks_db.insert_one(new_tsk.__dict__)
                 count += 1
 
-
-        return u'Saved {0} to {1} list'.format(', '.join(out), address if address else 'Group')
-        return u"You wrote {0} to {1} list, my lord!\n {2}".format(count, who, self.list(who)) if count else "Please, provide non-empty task."
+        if count:
+            return u'Saved {0} to {1} list'.format(', '.join(out), address if address else 'Group')
 
     def help(self):
         return ''' This is a Telegram ToDo bot.
