@@ -116,24 +116,31 @@ class ToDoBot(telebot.TeleBot, object):
     # Commands for bot
 
     def list(self, address):
+        if address == 'Group':
+            address = ''
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": address}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
-        return u'{} list:\n'.format(address if address else "Group") + '\n'.join(tasks) if tasks else u"There is no tasks in {} list!".format(address)
+        return u'{} list:\n'.format(address if address else "Group") + '\n'.join(tasks) if tasks else \
+            u"There is no tasks in {} list!\nExample:\n/list \n /list @Jack".format(address if address else "Group")
 
     def done(self, text, address):
         if address:
             numbers = text[len(address) + 2:]
             if numbers.strip().startswith("#all"):
+                if address == 'Group':
+                    address = ''
                 for task in self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': address}):
                     self.tasks_db.update({"_id": task["_id"]},
                           {"$set": {"finished": True, "end": time.time()}})
+                if not address:
+                    address = 'Group'
                 return u"I removed {} list.".format(address)
         else:
             numbers = text
         try:
             numbers = map(int, numbers.split(','))
         except ValueError:
-            return u"I'm very sorry. Some of the tasks do not exist."
+            return u"Please, specify correct task.\nExample:\n/done 1\n/done @Jack 1,2"
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': address}).sort("created")
         finished_tsk = []
         for ix, task in enumerate(cursor):
@@ -142,8 +149,8 @@ class ToDoBot(telebot.TeleBot, object):
                           {"$set": {"finished": True, "end": time.time()}})
                 finished_tsk.append(u'"{0}. {1}"'.format(ix+1, task['text']))
         if finished_tsk:
-            return u"I'm pleased to claim that you finished {0}!\n {1}".format('; '.join(finished_tsk), self.list(address))
-        return u"I'm very sorry. All of the tasks {0} do not exist.".format(', '.join(map(str, numbers)))
+            return u"I'm pleased to claim that you finished {0}!".format('; '.join(finished_tsk))
+        return u"Please, specify correct task.\nExample:\n/done 1\n/done @Jack 1,2"
 
     def todo(self, text, address):
         if address:
@@ -163,6 +170,7 @@ class ToDoBot(telebot.TeleBot, object):
 
         if count:
             return u'Saved {0} to {1} list'.format(', '.join(out), address if address else 'Group')
+        return u'Please specify task.\nExample:\n /todo Buy milk\n/todo @Jack Call to insurance'
 
     def help(self):
         return ''' This is a Telegram ToDo bot.
@@ -311,10 +319,8 @@ class ToDoBot(telebot.TeleBot, object):
 
         self.commands += map(lambda s: s + "@todobbot", self.commands)
 
-
-        if "title" not in self.update["chat"]:
-            print 'Sent user to botan:', botan.track(self.botan_token, self.update['from']['id'], self.update, 'User')
-        else:
+        print 'Sent user to botan:', botan.track(self.botan_token, self.update['from']['id'], self.update, 'User')
+        if "title" in self.update["chat"]:
             print 'Sent group to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, 'Group')
 
 
@@ -328,15 +334,18 @@ class ToDoBot(telebot.TeleBot, object):
         if command in self.commands:
             text = TDO.Update.get_text(self.update, command)
             words = text.split()
-            if len(words) and words[0].startswith("@") and len(words[0]) > 1 and words[0][1:] != "Group":
+            if len(words) and words[0].startswith("@") and len(words[0]) > 1:
                 address = words[0][1:]
             else:
                 address = ''
             if command in ['list', 'list@todobbot', 'l']:
+                print 'Sent list to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/list')
                 result = self.list(address)
             elif command in ['todo', 'todo@todobbot', 't']:
+                print 'Sent todo to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/todo')
                 result = self.todo(text, address)
             elif command in ['done', 'done@todobbot', 'd']:
+                print 'Sent done to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/done')
                 result = self.done(text, address)
             elif command in ['help', 'start', 'help@todobbot', 'start@todobbot', 'h', 's', 'h@todobbot', 's@todobbot']:
                 result = self.help()
