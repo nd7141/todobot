@@ -126,7 +126,7 @@ class ToDoBot(telebot.TeleBot, object):
     def done(self, text, address):
         if address:
             numbers = text[len(address) + 2:]
-            if numbers.strip().startswith("#all"):
+            if numbers.strip().startswith("all"):
                 if address == 'Group':
                     address = ''
                 for task in self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': address}):
@@ -249,7 +249,7 @@ class ToDoBot(telebot.TeleBot, object):
             if "end" in task:
                 tasks.append(u"{0}. {1} ({2})".format(i + 1, task['text'], TDO.Update.strtime(task["end"])))
                 i += 1
-        return 'Completed tasks:\n' + '\n'.join(tasks) if tasks else "You have no finished tasks!"
+        return 'Completed tasks:\n' + '\n'.join(tasks) + '\n*All dates are UTC.' if tasks else "You have no finished tasks!"
 
     def weather(self, name):
         try:
@@ -310,9 +310,9 @@ class ToDoBot(telebot.TeleBot, object):
         self.commands = ['todo', 't',
                          'list', 'l',
                          'done', 'd',
-                         'completed',
+                         'completed', 'c',
                          'start', 'help', 's', 'h',
-                         'all',
+                         'all', 'a',
                          'make', 'for', 'over',
                          'weather', 'city', 'me', 'cheer',
                          'countu', 'countg']
@@ -349,6 +349,11 @@ class ToDoBot(telebot.TeleBot, object):
                 result = self.done(text, address)
             elif command in ['help', 'start', 'help@todobbot', 'start@todobbot', 'h', 's', 'h@todobbot', 's@todobbot']:
                 result = self.help()
+            elif command in ['completed', 'completed@todobbot', 'c']:
+                result = self.completed()
+            elif command in ['all', 'a@todobbot', 'a']:
+                result = self.list_all()
+                print 'result', result
             elif command.startswith('cheer'):
                 result = self.cheer()
             elif command.startswith('make'):
@@ -361,14 +366,10 @@ class ToDoBot(telebot.TeleBot, object):
                 result = self.count(self.users_db)
             elif command.startswith('countg'):
                 result = self.count(self.groups_db)
-            elif command.startswith('completed'):
-                result = self.completed()
             elif command.startswith('weather'):
                 result = self.weather(text)
             elif command.startswith('city'):
                 result = self.get_city(text)
             elif command.startswith('me'):
                 result = self.get_info()
-            elif command.startswith('all'):
-                result = self.list_all()
             return result
