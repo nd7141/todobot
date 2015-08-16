@@ -24,6 +24,18 @@ class ToDoBot(telebot.TeleBot, object):
         self.geopy_user = geopy_user
         self.botan_token = botan_token
 
+        self.commands = ['todo', 't',
+                         'list', 'l',
+                         'done', 'd',
+                         'completed', 'c',
+                         'start', 'help', 's', 'h',
+                         'all', 'a',
+                         'make', 'for', 'over',
+                         'weather', 'city', 'me', 'cheer',
+                         'countu', 'countg']
+
+        self.commands += map(lambda s: s + "@todobbot", self.commands)
+
     def get_update(self):
         new_messages = []
         try:
@@ -96,9 +108,12 @@ class ToDoBot(telebot.TeleBot, object):
         self.update = update.update
 
     def write_user(self):
-        if not self.users_db.find_one({"user_id": self.update["from"]["id"]}):
-            user = TDO.User.from_json(self.update['from'], self.update['date'])
-            self.users_db.insert_one(user.__dict__)
+        user = self.users_db.find_one({"user_id": self.update["from"]["id"]})
+        if not user:
+            user_json = TDO.User.from_json(self.update['from'], self.update['date'])
+            self.users_db.insert_one(user_json.__dict__)
+            return user_json.__dict__
+        return user
 
     def write_group(self):
         if "title" in self.update["chat"]:
@@ -113,8 +128,13 @@ class ToDoBot(telebot.TeleBot, object):
                 group = TDO.Group.from_json(self.update["chat"], self.update["date"], self.update["from"]["id"])
                 self.groups_db.insert_one(group.__dict__)
 
-    # Commands for bot
+    def change_user_state(self, user_id, field, state):
+        user = self.users_db.find_one({"user_id": self.update["from"]["id"]})
+        if user:
+            self.users_db.update({"user_id": user_id},
+                {"$set": {field: state}})
 
+    # Commands for bot
     def list(self, address):
         if address == 'Group':
             address = ''
@@ -303,34 +323,8 @@ class ToDoBot(telebot.TeleBot, object):
                 todos[task['to_id']] = todos.setdefault(task['to_id'], 0) + 1
         return u"\n".join([u"{}. {} ({})".format(i+1, k, v) for (i,(k,v)) in enumerate(todos.iteritems())])
 
-
-    #TODO write more commands here
-
-    def execute(self):
-        self.commands = ['todo', 't',
-                         'list', 'l',
-                         'done', 'd',
-                         'completed', 'c',
-                         'start', 'help', 's', 'h',
-                         'all', 'a',
-                         'make', 'for', 'over',
-                         'weather', 'city', 'me', 'cheer',
-                         'countu', 'countg']
-
-        self.commands += map(lambda s: s + "@todobbot", self.commands)
-
-        print 'Sent user to botan:', botan.track(self.botan_token, self.update['from']['id'], self.update, 'User')
-        if "title" in self.update["chat"]:
-            print 'Sent group to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, 'Group')
-
-
-
-        # Write new user, group into database
-        self.write_user()
-        self.write_group()
-
-        # Execute command
-        command = TDO.Update.get_command(self.update)
+    def training(self, user, command):
+        # extract text and address
         if command in self.commands:
             text = TDO.Update.get_text(self.update, command)
             words = text.split()
@@ -338,38 +332,133 @@ class ToDoBot(telebot.TeleBot, object):
                 address = words[0][1:]
             else:
                 address = ''
-            if command in ['list', 'list@todobbot', 'l']:
-                print 'Sent list to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/list')
-                result = self.list(address)
-            elif command in ['todo', 'todo@todobbot', 't']:
+
+        if not user['state']:
+            self.change_user_state(user['user_id'], 'state', 'training0')
+            return """> First things first, let's create your first task.
+                    Type "/todo My first task."
+                    """
+        elif user['state'] == 'training0':
+            if command in ['todo', 'todo@todobbot', 't']:
+                self.change_user_state(user['user_id'], 'state', 'training1')
                 print 'Sent todo to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/todo')
                 result = self.todo(text, address)
-            elif command in ['done', 'done@todobbot', 'd']:
+                return result + """
+
+                                Great! Let's see what tasks you have in your list.
+                                Type "/list" to show created tasks.
+                                """
+            else:
+                return 'Something went wrong. Please, type "/todo My first task".'
+        elif user['state'] == 'training1':
+            if command in ['list', 'list@todobbot', 'l']:
+                self.change_user_state(user['user_id'], 'state', 'training2')
+                print 'Sent list to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/list')
+                result = self.list(address)
+                return result + """
+
+                                > You rock! Now, let's mark the first task as done.
+                                Type "/done 1" to complete the task.
+                                """
+            else:
+                return 'Something went wrong. Please, type "/list".'
+        elif user['state'] == 'training2':
+            if command in ['done', 'done@todobbot', 'd']:
+                self.change_user_state(user['user_id'], 'state', 'training3')
                 print 'Sent done to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/done')
                 result = self.done(text, address)
-            elif command in ['help', 'start', 'help@todobbot', 'start@todobbot', 'h', 's', 'h@todobbot', 's@todobbot']:
-                result = self.help()
-            elif command in ['completed', 'completed@todobbot', 'c']:
+                return result + """
+
+                                > That was awesome! Of course, you can see all completed tasks.
+                                Type "/completed" to view all completed tasks.
+                                """
+            else:
+                return 'Something went wrong. Please, type "/done 1"'
+        elif user['state'] == 'training3':
+            if command in ['completed', 'completed@todobbot', 'c']:
+                self.change_user_state(user['user_id'], 'state', 'training4')
+                self.change_user_state(user['user_id'], 'trained', True)
                 result = self.completed()
-            elif command in ['all', 'a@todobbot', 'a']:
-                result = self.list_all()
-                print 'result', result
-            elif command.startswith('cheer'):
-                result = self.cheer()
-            elif command.startswith('make'):
-                result = self.make(text)
-            elif command.startswith('for'):
-                result = self.for_f(text)
-            elif command.startswith('over'):
-                result = self.over(text)
-            elif command.startswith('countu'):
-                result = self.count(self.users_db)
-            elif command.startswith('countg'):
-                result = self.count(self.groups_db)
-            elif command.startswith('weather'):
-                result = self.weather(text)
-            elif command.startswith('city'):
-                result = self.get_city(text)
-            elif command.startswith('me'):
-                result = self.get_info()
+                return result + """
+
+                                > Perfect, you're almost set!
+                                You can now add me to one of your group chats, so all its members can never forget a thing.
+
+                                And a few more hints:
+                                1. All commands have shortcuts, e.g. /todo = /t, /list = /l, ...
+                                2. If the word after /todo or /list or /done starts with @, it will manage a named list.
+                                 For example, /todo @Jack Buy milk -- will create a task in Jack's list.
+                                3. You can autocomplete commands with TAB key. It's just convenient!
+                                4.Finally, if you need my assistance, type /help
+
+
+                                We welcome you to our friendly community and don't be afraid to write us a feedback at thetodobot.com!
+                                """
+            else:
+                return 'Something went wrong. Please, type "/completed".'
+
+
+    #TODO write more commands here
+
+    def execute(self):
+
+        # Send user statistics to botan
+        print 'Sent user to botan:', botan.track(self.botan_token, self.update['from']['id'], self.update, 'User')
+        if "title" in self.update["chat"]:
+            print 'Sent group to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, 'Group')
+
+        # Write new user, group into database
+        user = self.write_user()
+        self.write_group()
+
+        # extract command, text, address
+        command = TDO.Update.get_command(self.update)
+
+        # Train new user
+        if not user.setdefault('trained', False):
+            result = self.training(user, command)
             return result
+        else:
+            # Execute command
+            if command in self.commands:
+                text = TDO.Update.get_text(self.update, command)
+                words = text.split()
+                if len(words) and words[0].startswith("@") and len(words[0]) > 1:
+                    address = words[0][1:]
+                else:
+                    address = ''
+                if command in ['list', 'list@todobbot', 'l']:
+                    print 'Sent list to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/list')
+                    result = self.list(address)
+                elif command in ['todo', 'todo@todobbot', 't']:
+                    print 'Sent todo to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/todo')
+                    result = self.todo(text, address)
+                elif command in ['done', 'done@todobbot', 'd']:
+                    print 'Sent done to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/done')
+                    result = self.done(text, address)
+                elif command in ['help', 'start', 'help@todobbot', 'start@todobbot', 'h', 's', 'h@todobbot', 's@todobbot']:
+                    result = self.help()
+                elif command in ['completed', 'completed@todobbot', 'c']:
+                    result = self.completed()
+                elif command in ['all', 'a@todobbot', 'a']:
+                    result = self.list_all()
+                    print 'result', result
+                elif command.startswith('cheer'):
+                    result = self.cheer()
+                elif command.startswith('make'):
+                    result = self.make(text)
+                elif command.startswith('for'):
+                    result = self.for_f(text)
+                elif command.startswith('over'):
+                    result = self.over(text)
+                elif command.startswith('countu'):
+                    result = self.count(self.users_db)
+                elif command.startswith('countg'):
+                    result = self.count(self.groups_db)
+                elif command.startswith('weather'):
+                    result = self.weather(text)
+                elif command.startswith('city'):
+                    result = self.get_city(text)
+                elif command.startswith('me'):
+                    result = self.get_info()
+                return result
