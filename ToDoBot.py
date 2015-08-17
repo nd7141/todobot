@@ -30,6 +30,7 @@ class ToDoBot(telebot.TeleBot, object):
                          'completed', 'c',
                          'start', 'help', 's', 'h',
                          'all', 'a',
+                         'tutorial',
                          'make', 'for', 'over',
                          'weather', 'city', 'me', 'cheer',
                          'countu', 'countg']
@@ -112,7 +113,7 @@ class ToDoBot(telebot.TeleBot, object):
         if not user:
             user_json = TDO.User.from_json(self.update['from'], self.update['date'])
             self.users_db.insert_one(user_json.__dict__)
-            return user_json.__dict__
+            return self.users_db.find_one({"user_id": self.update["from"]["id"]})
         return user
 
     def write_group(self):
@@ -261,14 +262,18 @@ class ToDoBot(telebot.TeleBot, object):
     def count(self, db):
         return str(db.count())
 
-    def completed(self):
-        cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("created")
-        tasks = []
-        i = 0
-        for task in cursor:
-            if "end" in task:
-                tasks.append(u"{0}. {1} ({2})".format(i + 1, task['text'], TDO.Update.strtime(task["end"])))
-                i += 1
+    def completed(self, text):
+        try:
+            k = int(text)
+        except ValueError:
+            if text.strip().startswith("all"):
+                k = float("+inf")
+            else:
+                k = 3
+        cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
+        tasks = [u"{0}. {1} ({2})".format(i + 1, task['text'], TDO.Update.strtime(task["end"]))
+                 for i, task in enumerate(cursor) if "end" in task and i < k]
+        tasks.append("Use /completed {0} to show all tasks".format(i)) if i+1-k > 0 else None
         return 'Completed tasks:\n' + '\n'.join(tasks) + '\n*All dates are UTC.' if tasks else "You have no finished tasks!"
 
     def weather(self, name):
@@ -323,7 +328,7 @@ class ToDoBot(telebot.TeleBot, object):
                 todos[task['to_id']] = todos.setdefault(task['to_id'], 0) + 1
         return u"\n".join([u"{}. {} ({})".format(i+1, k, v) for (i,(k,v)) in enumerate(todos.iteritems())])
 
-    def training(self, user, command):
+    def tutorial(self, user, command):
         # extract text and address
         if command in self.commands:
             text = TDO.Update.get_text(self.update, command)
@@ -335,9 +340,11 @@ class ToDoBot(telebot.TeleBot, object):
 
         if not user['state']:
             self.change_user_state(user['user_id'], 'state', 'training0')
-            return """> First things first, let's create your first task.
-                    Type "/todo My first task."
-                    """
+            return """
+> Let's start a 1-minute demo.
+First things first, let's create your first task.
+Type "/todo My first task."
+"""
         elif user['state'] == 'training0':
             if command in ['todo', 'todo@todobbot', 't']:
                 self.change_user_state(user['user_id'], 'state', 'training1')
@@ -345,9 +352,9 @@ class ToDoBot(telebot.TeleBot, object):
                 result = self.todo(text, address)
                 return result + """
 
-                                Great! Let's see what tasks you have in your list.
-                                Type "/list" to show created tasks.
-                                """
+Great! Let's see what tasks you have in your list.
+Type "/list" to show created tasks.
+"""
             else:
                 return 'Something went wrong. Please, type "/todo My first task".'
         elif user['state'] == 'training1':
@@ -357,9 +364,9 @@ class ToDoBot(telebot.TeleBot, object):
                 result = self.list(address)
                 return result + """
 
-                                > You rock! Now, let's mark the first task as done.
-                                Type "/done 1" to complete the task.
-                                """
+> You rock! Now, let's mark the first task as done.
+Type "/done 1" to complete the task.
+"""
             else:
                 return 'Something went wrong. Please, type "/list".'
         elif user['state'] == 'training2':
@@ -369,31 +376,31 @@ class ToDoBot(telebot.TeleBot, object):
                 result = self.done(text, address)
                 return result + """
 
-                                > That was awesome! Of course, you can see all completed tasks.
-                                Type "/completed" to view all completed tasks.
-                                """
+> That was awesome! Of course, you can see all completed tasks.
+Type "/completed" to view all completed tasks.
+"""
             else:
                 return 'Something went wrong. Please, type "/done 1"'
         elif user['state'] == 'training3':
             if command in ['completed', 'completed@todobbot', 'c']:
                 self.change_user_state(user['user_id'], 'state', 'training4')
                 self.change_user_state(user['user_id'], 'trained', True)
-                result = self.completed()
+                result = self.completed(text)
                 return result + """
 
-                                > Perfect, you're almost set!
-                                You can now add me to one of your group chats, so all its members can never forget a thing.
+> Perfect, you're almost set!
+You can now add me to one of your group chats, so all its members can never forget a thing.
 
-                                And a few more hints:
-                                1. All commands have shortcuts, e.g. /todo = /t, /list = /l, ...
-                                2. If the word after /todo or /list or /done starts with @, it will manage a named list.
-                                 For example, /todo @Jack Buy milk -- will create a task in Jack's list.
-                                3. You can autocomplete commands with TAB key. It's just convenient!
-                                4.Finally, if you need my assistance, type /help
+And a few more hints:
+1. All commands have shortcuts, e.g. /todo = /t, /list = /l, ...
+2. If the word after /todo or /list or /done starts with @, it will manage a named list.
+ For example, /todo @Jack Buy milk -- will create a task in Jack's list.
+3. You can autocomplete commands with TAB key. It's just convenient!
+4.Finally, if you need my assistance, type /help
 
 
-                                We welcome you to our friendly community and don't be afraid to write us a feedback at thetodobot.com!
-                                """
+We welcome you to our friendly community and don't be afraid to write us a feedback at thetodobot.com!
+"""
             else:
                 return 'Something went wrong. Please, type "/completed".'
 
@@ -416,7 +423,7 @@ class ToDoBot(telebot.TeleBot, object):
 
         # Train new user
         if not user.setdefault('trained', False):
-            result = self.training(user, command)
+            result = self.tutorial(user, command)
             return result
         else:
             # Execute command
@@ -439,10 +446,13 @@ class ToDoBot(telebot.TeleBot, object):
                 elif command in ['help', 'start', 'help@todobbot', 'start@todobbot', 'h', 's', 'h@todobbot', 's@todobbot']:
                     result = self.help()
                 elif command in ['completed', 'completed@todobbot', 'c']:
-                    result = self.completed()
+                    result = self.completed(text)
                 elif command in ['all', 'a@todobbot', 'a']:
                     result = self.list_all()
-                    print 'result', result
+                elif command in ['tutorial', 'tutorial@todobbot']:
+                    self.users_db.update({"_id": user["_id"]},
+                                    {"$set": {"trained": False, "state": ''}})
+                    result = self.tutorial(user, command)
                 elif command.startswith('cheer'):
                     result = self.cheer()
                 elif command.startswith('make'):
