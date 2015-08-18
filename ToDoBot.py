@@ -9,6 +9,7 @@ import urllib
 from geopy import geocoders
 import pprint
 import botan
+from emoji_chars import *
 
 class ToDoBot(telebot.TeleBot, object):
     """ ToDoBot overrides the functionality of get_update function of TeleBot.
@@ -31,6 +32,7 @@ class ToDoBot(telebot.TeleBot, object):
                          'start', 'help', 's', 'h',
                          'all', 'a',
                          'tutorial',
+                         'feedback',
                          'make', 'for', 'over',
                          'weather', 'city', 'me', 'cheer',
                          'countu', 'countg']
@@ -337,24 +339,24 @@ class ToDoBot(telebot.TeleBot, object):
                 address = words[0][1:]
             else:
                 address = ''
-
         if not user['state']:
             self.change_user_state(user['user_id'], 'state', 'training0')
-            return """
-> Let's start a 1-minute demo.
+            return u"""
+Hi {0}! {1}
+Let's start a 1-minute tutorial.
 First things first, let's create your first task.
-Type "/todo My first task."
-"""
+Type "/todo Make my day!"
+""".format(user['first_name'], emoji_smile)
         elif user['state'] == 'training0':
             if command in ['todo', 'todo@todobbot', 't']:
                 self.change_user_state(user['user_id'], 'state', 'training1')
                 print 'Sent todo to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/todo')
                 result = self.todo(text, address)
-                return result + """
+                return result + u"""
 
-Great! Let's see what tasks you have in your list.
+Great! {0} Let's see what tasks you have in your list.
 Type "/list" to show created tasks.
-"""
+""".format(emoji_wink)
             else:
                 return 'Something went wrong. Please, type "/todo My first task".'
         elif user['state'] == 'training1':
@@ -362,11 +364,11 @@ Type "/list" to show created tasks.
                 self.change_user_state(user['user_id'], 'state', 'training2')
                 print 'Sent list to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/list')
                 result = self.list(address)
-                return result + """
+                return result + u"""
 
-> You rock! Now, let's mark the first task as done.
+You rock! {0} Now, let's mark the first task as done.
 Type "/done 1" to complete the task.
-"""
+""".format(emoji_thumb)
             else:
                 return 'Something went wrong. Please, type "/list".'
         elif user['state'] == 'training2':
@@ -374,11 +376,11 @@ Type "/done 1" to complete the task.
                 self.change_user_state(user['user_id'], 'state', 'training3')
                 print 'Sent done to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/done')
                 result = self.done(text, address)
-                return result + """
+                return result + u"""
 
-> That was awesome! Of course, you can see all completed tasks.
+That was awesome! {0} Of course, you can see all completed tasks.
 Type "/completed" to view all completed tasks.
-"""
+""".format(emoji_clap)
             else:
                 return 'Something went wrong. Please, type "/done 1"'
         elif user['state'] == 'training3':
@@ -386,24 +388,24 @@ Type "/completed" to view all completed tasks.
                 self.change_user_state(user['user_id'], 'state', 'training4')
                 self.change_user_state(user['user_id'], 'trained', True)
                 result = self.completed(text)
-                return result + """
+                return result + u"""
 
-> Perfect, you're almost set!
+{2} Perfect, you're almost set!
 You can now add me to one of your group chats, so all its members can never forget a thing.
 
 And a few more hints:
-1. All commands have shortcuts, e.g. /todo = /t, /list = /l, ...
-2. If the word after /todo or /list or /done starts with @, it will manage a named list.
+{0} If the word after /todo or /list or /done starts with @, it will manage a named list.
  For example, /todo @Jack Buy milk -- will create a task in Jack's list.
-3. You can autocomplete commands with TAB key. It's just convenient!
-4.Finally, if you need my assistance, type /help
+{1} You can autocomplete commands with TAB key. It's just convenient!
 
-
-We welcome you to our friendly community and don't be afraid to write us a feedback at thetodobot.com!
-"""
+We welcome you to our friendly community!
+P.S. Have troubles? Write us /feedback.
+""".format(emoji_one, emoji_two, emoji_sparkles)
             else:
                 return 'Something went wrong. Please, type "/completed".'
 
+    def feedback(self):
+        return "Please, write a feedback at thetodobot.com."
 
     #TODO write more commands here
 
@@ -423,6 +425,7 @@ We welcome you to our friendly community and don't be afraid to write us a feedb
 
         # Train new user
         if not user.setdefault('trained', False):
+            user["state"] = user.setdefault("state", "")
             result = self.tutorial(user, command)
             return result
         else:
@@ -450,9 +453,11 @@ We welcome you to our friendly community and don't be afraid to write us a feedb
                 elif command in ['all', 'a@todobbot', 'a']:
                     result = self.list_all()
                 elif command in ['tutorial', 'tutorial@todobbot']:
-                    self.users_db.update({"_id": user["_id"]},
-                                    {"$set": {"trained": False, "state": ''}})
+                    user['state'] = ''
+                    self.change_user_state(user['user_id'], 'trained', False)
                     result = self.tutorial(user, command)
+                elif command in ['feedback', 'feedback@todobbot']:
+                    result = self.feedback()
                 elif command.startswith('cheer'):
                     result = self.cheer()
                 elif command.startswith('make'):
