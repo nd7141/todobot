@@ -10,6 +10,7 @@ from geopy import geocoders
 import pprint
 import botan
 from emoji_chars import *
+from messages import *
 
 class ToDoBot(telebot.TeleBot, object):
     """ ToDoBot overrides the functionality of get_update function of TeleBot.
@@ -33,7 +34,6 @@ class ToDoBot(telebot.TeleBot, object):
                          'all', 'a',
                          'tutorial',
                          'feedback',
-                         'make', 'for', 'over',
                          'weather', 'city', 'me', 'cheer',
                          'countu', 'countg']
 
@@ -143,8 +143,8 @@ class ToDoBot(telebot.TeleBot, object):
             address = ''
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": address}).sort("created")
         tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
-        return u'{} list:\n'.format(address if address else "Group") + '\n'.join(tasks) if tasks else \
-            u"There is no tasks in {} list!\nExample:\n/list \n /list @Jack".format(address if address else "Group")
+        return list0.format(address if address else "Group") + '\n'.join(tasks) if tasks else \
+            list_er0.format(address if address else "Group")
 
     def done(self, text, address):
         if address:
@@ -157,13 +157,13 @@ class ToDoBot(telebot.TeleBot, object):
                           {"$set": {"finished": True, "end": time.time()}})
                 if not address:
                     address = 'Group'
-                return u"I removed {} list.".format(address)
+                return done1.format(address)
         else:
             numbers = text
         try:
             numbers = map(int, numbers.split(','))
         except ValueError:
-            return u"Please, specify correct task.\nExample:\n/done 1\n/done @Jack 1,2"
+            return done_er0
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, 'to_id': address}).sort("created")
         finished_tsk = []
         for ix, task in enumerate(cursor):
@@ -172,8 +172,8 @@ class ToDoBot(telebot.TeleBot, object):
                           {"$set": {"finished": True, "end": time.time()}})
                 finished_tsk.append(u'"{0}. {1}"'.format(ix+1, task['text']))
         if finished_tsk:
-            return u"I'm pleased to claim that you finished {0}!".format('; '.join(finished_tsk))
-        return u"Please, specify correct task.\nExample:\n/done 1\n/done @Jack 1,2"
+            return done0.format('; '.join(finished_tsk))
+        return done_er0
 
     def todo(self, text, address):
         if address:
@@ -192,74 +192,14 @@ class ToDoBot(telebot.TeleBot, object):
                 count += 1
 
         if count:
-            return u'Saved {0} to {1} list'.format(', '.join(out), address if address else 'Group')
-        return u'Please specify task.\nExample:\n /todo Buy milk\n/todo @Jack Call to insurance'
+            return todo0.format(', '.join(out), address if address else 'Group')
+        return todo_er0
 
     def help(self):
-        return ''' This is a Telegram ToDo bot.
-
-        Write /help - to get this message.
-        Write /todo task - to write another task. You can provide multiple tasks, where each task in a new line.
-        Write /list - to list current tasks in your ToDo list.
-        Write /done task1, task2, ... - to finish the task.
-        Write /completed - to list completed tasks in your ToDo list. (new)
-
-        Having more ideas or want to contribute? Write a comment to http://storebot.me/bot/todobbot.
-        '''
+        return help0
 
     def cheer(self):
-        return '''You're not a man, You're God!'''
-
-    def make(self, text):
-        lines = text.split(os.linesep)
-        try:
-            who = lines[0].split()[0]
-        except IndexError:
-            return "Please provide to whom you want assign a task."
-
-        if lines[0] < 2:
-            return "Please provide a task."
-        else:
-            tsks = [' '.join(lines[0].split()[1:])] + lines[1:]
-            count = 0
-            for t in tsks:
-                if t.strip():
-                    new_tsk = TDO.Task.from_json(self.update, t, who)
-                    self.tasks_db.insert_one(new_tsk.__dict__)
-                    count += 1
-            return u"You wrote {0} task to {1}, my lord!".format(count, who) if count else "Please, provide non-empty task."
-
-    def for_f(self, text):
-        words = text.split()
-        try:
-            who = words[0]
-        except IndexError:
-            return "Please provide for whom you want to show ToDo list."
-        cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": who}).sort("created")
-        tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
-        return who + ':\n' + '\n'.join(tasks) if tasks else u"{0} has no tasks!".format(who)
-
-    def over(self, text):
-        words = text.split()
-        try:
-            who = words[0]
-        except IndexError:
-            return "Please provide for whom you want to remove a task."
-        try:
-            numbers = map(int, ' '.join(words[1:]).split(','))
-        except ValueError:
-            return u"I'm very sorry. Some of the tasks are not numeric."
-
-        cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": who}).sort("created")
-        finished_tsk = []
-        for ix, task in enumerate(cursor):
-            if ix + 1 in numbers:
-                self.tasks_db.update({"_id": task["_id"]},
-                          {"$set": {"finished": True, "end": time.time()}})
-                finished_tsk.append(str(ix+1))
-        if finished_tsk:
-            return u"I'm pleased to claim that {0} finished tasks {1}!".format(who, ','.join(finished_tsk))
-        return u"I'm very sorry. Tasks {0} do not exist in the list of {1}.".format(','.join(map(str, numbers)), who)
+        return u'''You're not a man, You're God!'''
 
     def count(self, db):
         return str(db.count())
@@ -273,10 +213,11 @@ class ToDoBot(telebot.TeleBot, object):
             else:
                 k = 3
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
+        i = 0
         tasks = [u"{0}. {1} ({2})".format(i + 1, task['text'], TDO.Update.strtime(task["end"]))
                  for i, task in enumerate(cursor) if "end" in task and i < k]
-        tasks.append("Use /completed {0} to show all tasks".format(i)) if i+1-k > 0 else None
-        return 'Completed tasks:\n' + '\n'.join(tasks) + '\n*All dates are UTC.' if tasks else "You have no finished tasks!"
+        tasks.append(u"Use /completed {0} to show all tasks".format(i)) if i+1-k > 0 else None
+        return completed0.format('\n'.join(tasks)) if tasks else completed_er0
 
     def weather(self, name):
         try:
@@ -341,71 +282,42 @@ class ToDoBot(telebot.TeleBot, object):
                 address = ''
         if not user['state']:
             self.change_user_state(user['user_id'], 'state', 'training0')
-            return u"""
-Hi {0}! {1}
-Let's start a 1-minute tutorial.
-First things first, let's create your first task.
-Type "/todo Make my day!"
-""".format(user['first_name'], emoji_smile)
+            return tutorial0.format(user['first_name'], emoji_smile)
         elif user['state'] == 'training0':
             if command in ['todo', 'todo@todobbot', 't']:
                 self.change_user_state(user['user_id'], 'state', 'training1')
                 print 'Sent todo to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/todo')
                 result = self.todo(text, address)
-                return result + u"""
-
-Great! {0} Let's see what tasks you have in your list.
-Type "/list" to show created tasks.
-""".format(emoji_wink)
+                return result + tutorial1.format(emoji_wink)
             else:
-                return 'Something went wrong. Please, type "/todo My first task".'
+                return tutorial_er0
         elif user['state'] == 'training1':
             if command in ['list', 'list@todobbot', 'l']:
                 self.change_user_state(user['user_id'], 'state', 'training2')
                 print 'Sent list to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/list')
                 result = self.list(address)
-                return result + u"""
-
-You rock! {0} Now, let's mark the first task as done.
-Type "/done 1" to complete the task.
-""".format(emoji_thumb)
+                return result + tutorial2.format(emoji_thumb)
             else:
-                return 'Something went wrong. Please, type "/list".'
+                return tutorial_er1
         elif user['state'] == 'training2':
             if command in ['done', 'done@todobbot', 'd']:
                 self.change_user_state(user['user_id'], 'state', 'training3')
                 print 'Sent done to botan:', botan.track(self.botan_token, self.update['chat']['id'], self.update, '/done')
                 result = self.done(text, address)
-                return result + u"""
-
-That was awesome! {0} Of course, you can see all completed tasks.
-Type "/completed" to view all completed tasks.
-""".format(emoji_clap)
+                return result + tutorial3.format(emoji_clap)
             else:
-                return 'Something went wrong. Please, type "/done 1"'
+                return tutorial_er2
         elif user['state'] == 'training3':
             if command in ['completed', 'completed@todobbot', 'c']:
                 self.change_user_state(user['user_id'], 'state', 'training4')
                 self.change_user_state(user['user_id'], 'trained', True)
                 result = self.completed(text)
-                return result + u"""
-
-{2} Perfect, you're almost set!
-You can now add me to one of your group chats, so all its members can never forget a thing.
-
-And a few more hints:
-{0} If the word after /todo or /list or /done starts with @, it will manage a named list.
- For example, /todo @Jack Buy milk -- will create a task in Jack's list.
-{1} You can autocomplete commands with TAB key. It's just convenient!
-
-We welcome you to our friendly community!
-P.S. Have troubles? Write us /feedback.
-""".format(emoji_one, emoji_two, emoji_sparkles)
+                return result + tutorial4.format(emoji_one, emoji_two, emoji_sparkles)
             else:
-                return 'Something went wrong. Please, type "/completed".'
+                return tutorial_er3
 
     def feedback(self):
-        return "Please, write a feedback at thetodobot.com."
+        return feedback0
 
     #TODO write more commands here
 
@@ -423,8 +335,8 @@ P.S. Have troubles? Write us /feedback.
         # extract command, text, address
         command = TDO.Update.get_command(self.update)
 
-        # Train new user
-        if not user.setdefault('trained', False):
+        # Train new user (if not in the group)
+        if not user.setdefault('trained', False) and "title" not in self.update["chat"]:
             user["state"] = user.setdefault("state", "")
             result = self.tutorial(user, command)
             return result
@@ -453,9 +365,12 @@ P.S. Have troubles? Write us /feedback.
                 elif command in ['all', 'a@todobbot', 'a']:
                     result = self.list_all()
                 elif command in ['tutorial', 'tutorial@todobbot']:
-                    user['state'] = ''
-                    self.change_user_state(user['user_id'], 'trained', False)
-                    result = self.tutorial(user, command)
+                    if "title" not in self.update["chat"]:
+                        user['state'] = ''
+                        self.change_user_state(user['user_id'], 'trained', False)
+                        result = self.tutorial(user, command)
+                    else:
+                        result = 'Please, use personal chat with @Todobbot to take tutorial.'
                 elif command in ['feedback', 'feedback@todobbot']:
                     result = self.feedback()
                 elif command.startswith('cheer'):
