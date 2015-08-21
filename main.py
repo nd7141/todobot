@@ -7,6 +7,7 @@ __author__ = 'sivanov'
 import pymongo, sys, time, os
 import ToDoBot as TDB
 from emoji_chars import *
+import KeyTodoBot as KTDB
 
 
 def get_token(filename):
@@ -51,7 +52,7 @@ if __name__ == "__main__":
     geopy_user = get_token('geopy_username.txt')
     botan_token = int(get_token('botan_token.txt'))
 
-    td_bot = TDB.ToDoBot(token, owm_token, users_db, groups_db, tasks_db, geopy_user, botan_token)
+    td_bot = KTDB.ToDoBot(token, owm_token, users_db, groups_db, tasks_db, geopy_user, botan_token)
     td_bot.set_update_listener()
     td_bot.polling()
 

@@ -14,6 +14,7 @@ emoji_two = u"\u0032\u20E3"
 emoji_flag = u"\U0001F6A9"
 emoji_sparkles = u"\u2728"
 emoji_right_arrow = u"\u27A1"
+emoji_pencil = u"\u270F"
 
 if __name__ == "__main__":
     console = []
