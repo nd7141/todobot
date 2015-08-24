@@ -122,7 +122,9 @@ class ToDoBot(telebot.TeleBot, object):
         return todos
 
     def todo_initial(self):
-        markup = markups.cancel_btn
+        # markup = markups.cancel_btn
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard= True)
+        markup.add('Cancel')
         message = "What is the task?"
         self.users_db.update({"user_id": self.update['from']['id']},
             {"$set": {"state": "bot_todo"}})
@@ -136,6 +138,20 @@ class ToDoBot(telebot.TeleBot, object):
             message = u"{0} Do you wanna write another task? {1}".format(emoji_right_arrow, emoji_pencil)
         else:
             #TODO write task to db
+            words = self.update['text'].split()
+            if len(words) and words[0].startswith("@") and len(words[0]) > 1:
+                address = words[0][1:]
+            else:
+                address = ''
+            if address:
+                tasks = self.update['text'][len(address) + 2:].split(os.linesep)
+            else:
+                tasks = self.update['text'].split(os.linesep)
+
+            for t in tasks:
+                if t.strip():
+                    new_tsk = TDO.Task.from_json(self.update, t, address)
+                    self.tasks_db.insert_one(new_tsk.__dict__)
             message = u"Well done! {0}".format(emoji_clap)
 
         markup = markups.initial
@@ -219,15 +235,76 @@ class ToDoBot(telebot.TeleBot, object):
         message = u"{0} Do you wanna write another task? {1}".format(emoji_right_arrow, emoji_pencil)
         return message, markup
 
+    def completed_initial(self):
+        text = self.update['text']
+        try:
+            k = int(text)
+        except ValueError:
+            if text.strip().startswith("all"):
+                k = float("+inf")
+            else:
+                k = 3
+        cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
+        i = 0
+        tasks = [u"{0}. {1} ({2})".format(i + 1, task['text'], TDO.Update.strtime(task["end"]))
+                 for i, task in enumerate(cursor) if "end" in task and i < k]
+        tasks.append(u"Use /completed {0} to show all tasks".format(i)) if i+1-k > 0 else None
+        message = completed0.format('\n'.join(tasks)) if tasks else completed_er0
+        return message, markups.initial
 
-    # Remove all command as ambiguous 
+    def tutorial_initial(self):
+        # message: write your first task. Press to_do
+        # markup: initial
+        # state: to tutorial0
+        message = u"First, let's create a task.\nPress /todo {0}".format(emoji_right_arrow)
+        markup = markups.initial
+        self.users_db.update({"user_id": self.update['from']['id']},
+            {"$set": {"state": "bot_tutorial0"}})
+        return message, markup
+
+    def tutorial0(self):
+        # message: (a) Write a task (b) Something was wrong. Press button to_do
+        # markup: (a) Cancel tutorial (b) Initial
+        # state: (a) tutorial1 (b) nothing
+        if self.update['text'].strip() == '/todo':
+            message = u'{0} Now type "My first task"'.format(emoji_right_arrow)
+            markup = markups.cancel_ttrl
+            self._change_state(self.update['from']['id'], "bot_tutorial1")
+        else:
+            message = u"Hmmm, something's wrong. Please, press /todo"
+            markup = markups.initial
+        return message, markup
+
+    def tutorial1(self):
+        # message: (a) Great. Now let's create a named list (b) Do you want to write task
+        # markup: (a) initial (b) initial
+        # state: (a) tutorial2 (b) initial
+        print 'text', self.update['text']
+        if self.update['text'].strip() != 'Cancel tutorial':
+            message = u"{0} Great! Now let's create a task to someone.\First, press /todo button".format(emoji_sparkles)
+            self._change_state(self.update['from']['id'], 'bot_tutorial2')
+        else:
+            message = u"{0} Do you want to write another task?".format(emoji_right_arrow)
+            self._change_state(self.update['from']['id'], 'bot_initial')
+        markup = markups.initial
+        return message, markup
+
+    def tutorial2(self):
+        # message:
+        # markup:
+        # state:
+        pass
+
+    # TODO Remove all command as ambiguous
     def all_initial(self):
         todos = self._all_lists()
-        return u"\n".join([u"{}. {} ({})".format(i+1, k, v) for (i,(k,v)) in enumerate(todos.iteritems())]), None
+        return u"\n".join([u"{}. {} ({})".format(i+1, k, len(v)) for (i,(k,v)) in enumerate(todos.iteritems())]), None
+
+    def _change_state(self, user_id, state):
+        self.users_db.update({"user_id": user_id}, {"$set": {"state": state}})
 
     def execute(self):
-        message = None
-        markup = None
+        mm = None, None
         # print self.update
 
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
@@ -239,20 +316,27 @@ class ToDoBot(telebot.TeleBot, object):
         if state == 'bot_initial':
             if command in self.commands:
                 if command in ['todo', 'todo@todobbot', 't']:
-                    message, markup  = self.todo_initial()
+                    mm  = self.todo_initial()
                 elif command in ['list', 'list@todobbot', 'l']:
-                    message, markup = self.list_initial()
+                    mm = self.list_initial()
                 elif command in ['done', 'done@todobbot', 'd']:
-                    message, markup = self.done_initial()
+                    mm = self.done_initial()
                 elif command in ['all', 'all@todobbot', 'a']:
-                    message, markup = self.all_initial()
+                    mm = self.all_initial()
+                elif command in ['completed', 'completed@todobbot', 'c']:
+                    mm = self.completed_initial()
+                elif command in ['tutorial', 'tutorial@todobbot', 't']:
+                    mm = self.tutorial_initial()
         elif state == 'bot_todo':
-            message, markup  = self.todo_respond()
+            mm = self.todo_respond()
         elif state == 'bot_list':
-            message, markup = self.list_respond()
+            mm = self.list_respond()
         elif state == 'bot_done0':
-            message, markup = self.done0()
+            mm = self.done0()
         elif state == 'bot_done1':
-            message, markup = self.done1()
-
-        return message, markup
+            mm = self.done1()
+        elif state == 'bot_tutorial0':
+            mm = self.tutorial0()
+        elif state == 'bot_tutorial1':
+            mm = self.tutorial1()
+        return mm
