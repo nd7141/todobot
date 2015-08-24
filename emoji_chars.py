@@ -15,6 +15,12 @@ emoji_flag = u"\U0001F6A9"
 emoji_sparkles = u"\u2728"
 emoji_right_arrow = u"\u27A1"
 emoji_pencil = u"\u270F"
+emoji_clipboard = u"\U0001F4CB"
+emoji_memo = u"\U0001F4DD"
+emoji_hammer = u"\U0001F528"
+emoji_cross = u"\u274C"
+emoji_check_mark = u"\u2714"
+emoji_no_entry = u"\U0001F6AB"
 
 if __name__ == "__main__":
     console = []

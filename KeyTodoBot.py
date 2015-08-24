@@ -256,8 +256,9 @@ class ToDoBot(telebot.TeleBot, object):
         # message: write your first task. Press to_do
         # markup: initial
         # state: to tutorial0
-        message = u"First, let's create a task.\nPress /todo {0}".format(emoji_right_arrow)
-        markup = markups.initial
+        message = u"First, let's create a task.\nPress /todo {0}".format(emoji_memo)
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add(u'/todo {}'.format(emoji_memo), u'Cancel tutorial {}'.format(emoji_cross))
         self.users_db.update({"user_id": self.update['from']['id']},
             {"$set": {"state": "bot_tutorial0"}})
         return message, markup
@@ -266,13 +267,18 @@ class ToDoBot(telebot.TeleBot, object):
         # message: (a) Write a task (b) Something was wrong. Press button to_do
         # markup: (a) Cancel tutorial (b) Initial
         # state: (a) tutorial1 (b) nothing
-        if self.update['text'].strip() == '/todo':
+        if self.update['text'].strip().startswith(u'/todo'):
             message = u'{0} Now type "My first task"'.format(emoji_right_arrow)
             markup = markups.cancel_ttrl
             self._change_state(self.update['from']['id'], "bot_tutorial1")
-        else:
-            message = u"Hmmm, something's wrong. Please, press /todo"
+        elif self.update['text'].strip().startswith(u'Cancel tutorial'):
+            self._change_state(self.update['from']['id'], "bot_initial")
             markup = markups.initial
+            message = u"{}".format(emoji_check_mark)
+        else:
+            message = u"Hmmm, something's wrong. Please, press /todo {}".format(emoji_memo)
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(u'/todo {}'.format(emoji_memo), u'Cancel tutorial {}'.format(emoji_cross))
         return message, markup
 
     def tutorial1(self):
@@ -280,20 +286,94 @@ class ToDoBot(telebot.TeleBot, object):
         # markup: (a) initial (b) initial
         # state: (a) tutorial2 (b) initial
         print 'text', self.update['text']
-        if self.update['text'].strip() != 'Cancel tutorial':
-            message = u"{0} Great! Now let's create a task to someone.\First, press /todo button".format(emoji_sparkles)
+        if not self.update['text'].strip().startswith('Cancel tutorial'):
+            message = u"{0} Great! Now let's assign a task to someone.\nFirst, press /todo button".format(emoji_sparkles)
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(u'/todo {}'.format(emoji_memo), u'Cancel tutorial {}'.format(emoji_cross))
             self._change_state(self.update['from']['id'], 'bot_tutorial2')
         else:
-            message = u"{0} Do you want to write another task?".format(emoji_right_arrow)
+            markup = markups.initial
+            message = u"Tutorial stopped {}".format(emoji_no_entry)
             self._change_state(self.update['from']['id'], 'bot_initial')
-        markup = markups.initial
         return message, markup
 
     def tutorial2(self):
         # message:
         # markup:
         # state:
-        pass
+        if self.update['text'].startswith(u'Cancel tutorial'):
+            markup = markups.initial
+            message = u"Tutorial stopped {}".format(emoji_no_entry)
+            self._change_state(self.update['from']['id'], 'bot_initial')
+        elif self.update['text'].startswith('/todo'):
+            markup = markups.cancel_ttrl
+            message = u'Now type "@{} Create first named list"'.format(self.update['from']['username']
+                                                                      if 'username' in self.update['from']
+                                                                      else self.update['from']['first_name'])
+            self._change_state(self.update['from']['id'], 'bot_tutorial3')
+        else:
+            message = u"Hmmm, something's wrong. Please, press /todo {}".format(emoji_memo)
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(u'/todo {}'.format(emoji_memo), u'Cancel tutorial {}'.format(emoji_cross))
+        return message, markup
+
+    def tutorial3(self):
+        if self.update['text'].startswith(u'Cancel tutorial'):
+            markup = markups.initial
+            message = u"Tutorial stopped {}".format(emoji_no_entry)
+            self._change_state(self.update['from']['id'], 'bot_initial')
+        elif self.update['text'].startswith('@'):
+            message = u"Great! {}\nLet's now see your tasks.\nPress /list {}".format(emoji_clap, emoji_clipboard)
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(u'/list {}'.format(emoji_clipboard), u'Cancel tutorial {}'.format(emoji_cross))
+            self._change_state(self.update['from']['id'], 'bot_tutorial4')
+        else:
+            message = u"You task should begin with @ symbol.\nFor example: @Jack Buy milk."
+            markup = markups.cancel_ttrl
+        return message, markup
+
+    def tutorial4(self):
+        if self.update['text'].startswith(u'Cancel tutorial'):
+            markup = markups.initial
+            message = u"Tutorial stopped {}".format(emoji_no_entry)
+            self._change_state(self.update['from']['id'], 'bot_initial')
+        else:
+            todos = [u"{} ({})".format(k, len(v)) for k,v in self._all_lists().iteritems()]
+            todos.append(u"Cancel tutorial {}".format(emoji_cross))
+            n = len(todos)
+            rows = [todos[i:i + n//3] for i in range(0, n, n//3)]
+            markup = telebot.types.ReplyKeyboardMarkup()
+            for r in rows:
+                markup.add(*r)
+            message = u"These are your Todo lists.\nSelect Group."
+            self._change_state(self.update['from']['id'], 'bot_tutorial5')
+        return message, markup
+
+    def tutorial5(self):
+        if self.update['text'].startswith(u'Cancel tutorial'):
+            markup = markups.initial
+            message = u"Tutorial stopped {}".format(emoji_no_entry)
+            self._change_state(self.update['from']['id'], 'bot_initial')
+        elif self.update['text'].startswith('Group'):
+            cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
+            tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor)]
+            message = list0.format("Group") + '\n'.join(tasks) + \
+                      u"\nNow, get our first task done.\nPress /done {}".format(emoji_hammer)
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(u'/done {}'.format(emoji_hammer), u'Cancel tutorial {}'.format(emoji_cross))
+            self._change_state(self.update['from']['id'], 'bot_tutorial6')
+        else:
+            message = u"You should select Group list."
+            todos = [u"{} ({})".format(k, len(v)) for k,v in self._all_lists().iteritems()]
+            todos.append(u"Cancel tutorial {}".format(emoji_cross))
+            n = len(todos)
+            rows = [todos[i:i + n//3] for i in range(0, n, n//3)]
+            markup = telebot.types.ReplyKeyboardMarkup()
+            for r in rows:
+                markup.add(*r)
+        return message, markup
+
+    # TODO start tutorial6 and done part
 
     # TODO Remove all command as ambiguous
     def all_initial(self):
@@ -339,4 +419,12 @@ class ToDoBot(telebot.TeleBot, object):
             mm = self.tutorial0()
         elif state == 'bot_tutorial1':
             mm = self.tutorial1()
+        elif state == 'bot_tutorial2':
+            mm = self.tutorial2()
+        elif state == 'bot_tutorial3':
+            mm = self.tutorial3()
+        elif state == 'bot_tutorial4':
+            mm = self.tutorial4()
+        elif state == 'bot_tutorial5':
+            mm = self.tutorial5()
         return mm
