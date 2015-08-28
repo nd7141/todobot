@@ -266,9 +266,9 @@ class ToDoBot(telebot.TeleBot, object):
         if self.update['text'].strip().startswith(u'/todo'):
             message = u'{0} Now type "My first task"'.format(emoji_right_arrow)
             markup = markups.cancel_ttrl
-            self._change_state(self.update['from']['id'], "bot_tutorial1")
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], "bot_tutorial1")
         elif self.update['text'].strip().startswith(u'Cancel tutorial'):
-            self._change_state(self.update['from']['id'], "bot_initial")
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], "bot_initial")
             markup = markups.initial
             message = u"{}".format(emoji_check_mark)
         else:
@@ -281,18 +281,17 @@ class ToDoBot(telebot.TeleBot, object):
         # message: (a) Great. Now let's create a named list (b) Do you want to write task
         # markup: (a) initial (b) initial
         # state: (a) tutorial2 (b) initial
-        print 'text', self.update['text']
         if not self.update['text'].strip().startswith('Cancel tutorial'):
             new_tsk = TDO.Task.from_json(self.update, self.update['text'], '')
             self.tasks_db.insert_one(new_tsk.__dict__)
             message = u"{0} Great! Now let's assign a task to someone.\nFirst, press /todo button".format(emoji_sparkles)
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add(u'/todo {}'.format(emoji_memo), u'Cancel tutorial {}'.format(emoji_cross))
-            self._change_state(self.update['from']['id'], 'bot_tutorial2')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_tutorial2')
         else:
             markup = markups.initial
             message = u"Tutorial stopped {}".format(emoji_no_entry)
-            self._change_state(self.update['from']['id'], 'bot_initial')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_initial')
         return message, markup
 
     def tutorial2(self):
@@ -302,13 +301,13 @@ class ToDoBot(telebot.TeleBot, object):
         if self.update['text'].startswith(u'Cancel tutorial'):
             markup = markups.initial
             message = u"Tutorial stopped {}".format(emoji_no_entry)
-            self._change_state(self.update['from']['id'], 'bot_initial')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_initial')
         elif self.update['text'].startswith('/todo'):
             markup = markups.cancel_ttrl
             message = u'Now type "@{} Create first named list"'.format(self.update['from']['username']
                                                                       if 'username' in self.update['from']
                                                                       else self.update['from']['first_name'])
-            self._change_state(self.update['from']['id'], 'bot_tutorial3')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_tutorial3')
         else:
             message = u"Hmmm, something's wrong. Please, press /todo {}".format(emoji_memo)
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -319,7 +318,7 @@ class ToDoBot(telebot.TeleBot, object):
         if self.update['text'].startswith(u'Cancel tutorial'):
             markup = markups.initial
             message = u"Tutorial stopped {}".format(emoji_no_entry)
-            self._change_state(self.update['from']['id'], 'bot_initial')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_initial')
         elif self.update['text'].startswith('@'):
             words = self.update['text'].split()
             address = words[0][1:]
@@ -328,7 +327,7 @@ class ToDoBot(telebot.TeleBot, object):
             message = u"Great! {}\nLet's now see your tasks.\nPress /list {}".format(emoji_clap, emoji_clipboard)
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add(u'/list {}'.format(emoji_clipboard), u'Cancel tutorial {}'.format(emoji_cross))
-            self._change_state(self.update['from']['id'], 'bot_tutorial4')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_tutorial4')
         else:
             message = u"You task should begin with @ symbol.\nFor example: @Jack Buy milk."
             markup = markups.cancel_ttrl
@@ -338,21 +337,21 @@ class ToDoBot(telebot.TeleBot, object):
         if self.update['text'].startswith(u'Cancel tutorial'):
             markup = markups.initial
             message = u"Tutorial stopped {}".format(emoji_no_entry)
-            self._change_state(self.update['from']['id'], 'bot_initial')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_initial')
         else:
             todos = [u"{} ({})".format(k, len(v)) for k,v in self._all_lists().iteritems()]
             todos.append(u"Cancel tutorial {}".format(emoji_cross))
             markup = telebot.types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
             markup.add(*todos)
             message = u"These are your Todo lists.\nSelect Group."
-            self._change_state(self.update['from']['id'], 'bot_tutorial5')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_tutorial5')
         return message, markup
 
     def tutorial5(self):
         if self.update['text'].startswith(u'Cancel tutorial'):
             markup = markups.initial
             message = u"Tutorial stopped {}".format(emoji_no_entry)
-            self._change_state(self.update['from']['id'], 'bot_initial')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_initial')
         elif self.update['text'].startswith('Group'):
             cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
             tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor) if 'text' in task]
@@ -360,7 +359,7 @@ class ToDoBot(telebot.TeleBot, object):
                       u"\n\nNow, get our first task done.\nPress /done {}".format(emoji_hammer)
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add(u'/done {}'.format(emoji_hammer), u'Cancel tutorial {}'.format(emoji_cross))
-            self._change_state(self.update['from']['id'], 'bot_tutorial6')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_tutorial6')
         else:
             message = u"You should select Group list."
             todos = [u"{} ({})".format(k, len(v)) for k,v in self._all_lists().iteritems()]
@@ -373,14 +372,14 @@ class ToDoBot(telebot.TeleBot, object):
         if self.update['text'].startswith(u'Cancel tutorial'):
             markup = markups.initial
             message = u"Tutorial stopped {}".format(emoji_no_entry)
-            self._change_state(self.update['from']['id'], 'bot_initial')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_initial')
         elif self.update['text'].startswith('/done'):
             todos = [u"{} ({})".format(k, len(v)) for k,v in self._all_lists().iteritems()]
             todos.append(u"Cancel tutorial {}".format(emoji_cross))
             markup = telebot.types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
             markup.add(*todos)
             message = u"Then you should select Todo list. Select Group list."
-            self._change_state(self.update['from']['id'], 'bot_tutorial7')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_tutorial7')
         else:
             message = u"Please, press /done {}".format(emoji_hammer)
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -391,7 +390,7 @@ class ToDoBot(telebot.TeleBot, object):
         if self.update['text'].startswith(u'Cancel tutorial'):
             markup = markups.initial
             message = u"Tutorial stopped {}".format(emoji_no_entry)
-            self._change_state(self.update['from']['id'], 'bot_initial')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_initial')
         elif self.update['text'].startswith('Group'):
             cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
             tasks = [u"{0}. {1}".format(ix + 1, task['text']) for (ix, task) in enumerate(cursor) if 'text' in task]
@@ -399,7 +398,7 @@ class ToDoBot(telebot.TeleBot, object):
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
             markup.add(*tasks)
             markup.add(u'Cancel tutorial {}'.format(emoji_cross))
-            self._change_state(self.update['from']['id'], 'bot_tutorial8')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_tutorial8')
         else:
             message = u"You should select Group list."
             todos = [u"{} ({})".format(k, len(v)) for k,v in self._all_lists().iteritems()]
@@ -412,7 +411,7 @@ class ToDoBot(telebot.TeleBot, object):
         if self.update['text'].startswith(u'Cancel tutorial'):
             markup = markups.initial
             message = u"Tutorial stopped {}".format(emoji_no_entry)
-            self._change_state(self.update['from']['id'], 'bot_initial')
+            self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_initial')
         else:
             cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
             try:
@@ -423,7 +422,7 @@ class ToDoBot(telebot.TeleBot, object):
                             {"$unset": {"$set": {"finished": True, "end": time.time()}}})
                         message = u"Great! You just removed the task! Now you're ready to use Todo Bot"
                         markup = markups.initial
-                        self._change_state(self.update['from']['id'], 'bot_initial')
+                        self._change_state(self.update['from']['id'], self.update['chat']['id'], 'bot_initial')
                         break
                 else:
                     cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False, "to_id": ''}).sort("created")
@@ -447,19 +446,22 @@ class ToDoBot(telebot.TeleBot, object):
         todos = self._all_lists()
         return u"\n".join([u"{}. {} ({})".format(i+1, k, len(v)) for (i,(k,v)) in enumerate(todos.iteritems())]), None
 
-    def _change_state(self, user_id, state):
-        self.users_db.update({"user_id": user_id}, {"$set": {"state": state}})
+    def _change_state(self, user_id, chat_id, state):
+        self.users_db.update({"user_id": user_id}, {"$set": {"state.{}".format(chat_id): state}})
 
     def execute(self):
         mm = None, None
         # print self.update
 
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
+        try:
+            state = user['state']['chatid']
+        except KeyError:
+            state = 'bot_initial'
+            self._change_state(user['id'], self.update['chat']['id'], 'bot_initial')
         print 'State:', user['state']
 
         command = TDO.Update.get_command(self.update)
-
-        state = user.setdefault('state', 'bot_initial')
         if state == 'bot_initial':
             if command in self.commands:
                 if command in ['todo', 'todo@todobbot', 't']:
