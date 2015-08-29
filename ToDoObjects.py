@@ -56,7 +56,6 @@ class User(Jsonish):
         self.last_name = last_name
         self.username = username
         self.info = {'city': ''}
-        self.state = ''
         self.trained = False
 
 class Group(Jsonish):

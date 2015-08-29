@@ -21,6 +21,7 @@ emoji_hammer = u"\U0001F528"
 emoji_cross = u"\u274C"
 emoji_check_mark = u"\u2714"
 emoji_no_entry = u"\U0001F6AB"
+emoji_sad = u"\U0001F61E"
 
 if __name__ == "__main__":
     console = []
