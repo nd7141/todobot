@@ -499,6 +499,11 @@ class ToDoBot(telebot.TeleBot, object):
             message = u'Sorry to hear that {}'.format(emoji_sad)
             markup = self._create_initial_menu()
             self._change_state('bot_initial')
+        else:
+            message = u'Please, enter Yes or No'
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add([u'Yes {}'.format(emoji_check_mark)], [u'No {}'.format(emoji_cross)])
+        return message, markup
         #TODO finish jibberish case and check
 
     # TODO Remove all command as ambiguous
@@ -531,12 +536,10 @@ class ToDoBot(telebot.TeleBot, object):
 
         print 'Started with state:', state
 
-
-
         command = TDO.Update.get_command(self.update)
         if state == 'bot_initial':
             todos = self._all_lists()
-            task = self._get_task()
+            # task = self._get_task()
             if command in self.commands:
                 if command in ['todo', 'todo@todobbot', 't']:
                     mm  = self.todo_initial()
@@ -550,8 +553,8 @@ class ToDoBot(telebot.TeleBot, object):
                     mm = self.completed_initial()
                 elif command in ['tutorial', 'tutorial@todobbot', 't']:
                     mm = self.tutorial_initial()
-            elif self._in_list(task, todos['Group']):
-                mm = self.remove_initial(task)
+            # elif self._in_list(task, todos['Group']):
+            #     mm = self.remove_initial(task)
         elif state == 'remove0':
             mm = self.remove0()
         elif state == 'bot_todo':

@@ -74,7 +74,7 @@ class Group(Jsonish):
 
 class Task(Jsonish):
     @classmethod
-    def from_json(cls, json_string, text, to_id=None):
+    def from_json(cls, json_string, to_id=None):
         obj = cls.check_json(json_string)
         message_id = obj['message_id']
         chat_id = obj['chat']['id']
@@ -82,7 +82,7 @@ class Task(Jsonish):
         created = obj['date']
         if to_id is None:
             to_id = ''
-        return Task(message_id, text, chat_id, from_id, created, to_id)
+        return Task(message_id, obj.get('text', ''), chat_id, from_id, created, to_id)
 
     def __init__(self, message_id, text, chat_id, from_id, created, to_id):
         self.message_id = message_id
@@ -104,11 +104,11 @@ class Update(object):
     @staticmethod
     def get_command(update):
         if 'text' in update and update['text'].startswith('/'):
-            return update['text'].split()[0][1:].lower()
+            return update['text'].split()[0][1:].lower(), update['text']
 
     @staticmethod
     def get_text(update, command):
-        return update['text'][1 + len(command) :]
+        return update['text'][1 + len(command):]
 
     @staticmethod
     def strtime(unix):
