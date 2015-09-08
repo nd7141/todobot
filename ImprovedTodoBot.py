@@ -190,12 +190,32 @@ class ToDoBot(telebot.TeleBot, object):
             markup.add([u'Yes', u'No'])
         return message, markup
 
+    def remove(self):
+        todos = self._all_lists()
+        tasks = todos['']
+        for task in tasks:
+            if task['text'] == self.update['text']:
+                print 'task', task
+                self.tasks_db.update({"_id": task["_id"]},
+                    {"$set": {"finished": True, "end": time.time()}})
+                message = u'Just finished task:\n{}'.format(self.update['text'])
+                break
+        else:
+            message = u'No task'
+        markup = self._create_initial()
+        return message, markup
+
     def completed(self):
         cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
         markup = self._create_initial()
         message = u'Here are your completed tasks:\n'
         message += '\n'.join([u'{} ({})'.format(task['text'], TDO.Update.strtime(task['end']))
                               for task in cursor if 'text' in task])
+        return message, markup
+
+    def todo_choose_list(self):
+        message = u'Not implemented'
+        markup = self._create_initial()
         return message, markup
 
     def execute(self):
@@ -218,7 +238,7 @@ class ToDoBot(telebot.TeleBot, object):
             else:
                 texts = [task['text'] for task in self._tasks_from(lst='') if 'text' in task]
                 if text in texts:
-                    mm = self.remove_task(text)
+                    mm = self.remove()
         elif state == 'todo_write':
             mm = self.todo_write()
         elif state == 'todo_choose_list':
