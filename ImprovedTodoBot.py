@@ -142,11 +142,14 @@ class ToDoBot(telebot.TeleBot, object):
 
     def todo_write(self):
         if self.update['text'].strip() == u'Cancel':
-            message = u"What's going on?"
+            message = u"Cancelled writing"
         else:
-            new_tsk = TDO.Task.from_json(self.update)
-            self.tasks_db.insert_one(new_tsk.__dict__)
-            message = u'Wrote new task {}'.format(emoji_sparkles)
+            if self.update['text'] in ['/todo', '/completed']:
+                message = u'Cannot write task: {}'.format(self.update['text'])
+            else:
+                new_tsk = TDO.Task.from_json(self.update)
+                self.tasks_db.insert_one(new_tsk.__dict__)
+                message = u'New task {}'.format(emoji_sparkles)
         markup = self._create_initial()
         self._change_state('initial')
         return message, markup
@@ -168,7 +171,8 @@ class ToDoBot(telebot.TeleBot, object):
             tasks = todos['']
             for task in tasks:
                 if task['text'] == tmp:
-                    self.tasks_db.update({"message_id": task["message_id"]},
+                    print 'task', task
+                    self.tasks_db.update({"_id": task["_id"]},
                         {"$set": {"finished": True, "end": time.time()}})
                     message = u'Just finished task:\n{}'.format(tmp)
                     break
@@ -197,6 +201,8 @@ class ToDoBot(telebot.TeleBot, object):
     def execute(self):
         mm = None, None
 
+        print 'chat id', self.update['chat']['id']
+
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
         state = user.get('state{}'.format(self.update['chat']['id']), 'initial')
 
@@ -205,9 +211,9 @@ class ToDoBot(telebot.TeleBot, object):
 
         if state == 'initial':
             text= self.update['text'].strip()
-            if text in ['/todo', '/t']:
+            if text in ['/todo']:
                 mm = self.todo()
-            elif text in ['/completed', '/c']:
+            elif text in ['/completed']:
                 mm = self.completed()
             else:
                 texts = [task['text'] for task in self._tasks_from(lst='') if 'text' in task]
@@ -215,8 +221,8 @@ class ToDoBot(telebot.TeleBot, object):
                     mm = self.remove_task(text)
         elif state == 'todo_write':
             mm = self.todo_write()
-        elif state == 'completed_return':
-            mm = self.completed_return()
+        elif state == 'todo_choose_list':
+            mm = self.todo_choose_list()
         elif state == 'remove_confirm':
             mm = self.remove_confirm()
 
