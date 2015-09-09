@@ -29,6 +29,8 @@ class ToDoBot(telebot.TeleBot, object):
                          ]
 
         self.commands += map(lambda s: s + "@todobbot", self.commands)
+        self.todo_name = u'New task {}'.format(emoji_plus)
+        self.addons_name = u'Add-ons {}'.format(emoji_rocket)
 
     def get_update(self):
         new_messages = []
@@ -126,7 +128,8 @@ class ToDoBot(telebot.TeleBot, object):
 
     def _create_initial(self):
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add(u'/todo', u'/completed')
+        markup.add(self.todo_name)
+        markup.add(self.addons_name)
         tasks = self.tasks_db.find({"chat_id": self.update['chat']['id'], 'finished': False, 'to_id': ''}).sort('created')
         for task in tasks:
             if 'text' in task:
@@ -134,11 +137,66 @@ class ToDoBot(telebot.TeleBot, object):
         return markup
 
     def todo(self):
-        self._change_state('todo_write')
-        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add(u'Cancel')
-        message = u'Please, write your task'
+        user = self.users_db.find_one({"user_id": self.update['from']['id']})
+        if  float(user.get('expiry_date', 0)) < time.time(): # expired
+            self._change_state('todo_write')
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(u'Cancel')
+            message = u'Please, write your task'
+        else:
+            todos = self._all_lists()
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(u'Create new Todo list')
+            for todo in todos:
+                if todo:
+                    markup.add(todo)
+            markup.add(u'Cancel')
+            message = u'Write task to default list or create new list'
+            self._change_state('todo_create_list')
         return message, markup
+
+    def todo_create_list(self):
+        todos = self._all_lists()
+        if self.update['text'].startswith('Cancel'):
+            markup = self._create_initial()
+            message = u'Done'
+            self._change_state('initial')
+        elif self.update['text'].startswith(u'Create new Todo list'):
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(u'Cancel')
+            message = u'How do you call this list?'
+            self._change_state('todo_write_list')
+        elif self.update['text'] in todos:
+            message = u'Please, write your task'
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add('Cancel')
+            self._change_state('todo_write')
+            self.users_db.update({"user_id": self.update['from']['id']},
+                {"$set": {u"tmp{}".format(self.update['chat']['id']): self.update['text']}})
+        else:
+            message, markup = self.todo_write()
+            self._change_state('initial')
+        return message, markup
+
+    def todo_write_list(self):
+        if self.update['text'] == 'Cancel':
+            self._change_state('initial')
+            markup = self._create_initial()
+            message = u'Done'
+        else:
+            message = u'Write task to {} list'.format(self.update['text'])
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            self.users_db.update({"user_id": self.update['from']['id']},
+                {"$set": {u"tmp{}".format(self.update['chat']['id']): self.update['text']}})
+            self._change_state('todo_write')
+        return message, markup
+
+    # def todo(self):
+    #     self._change_state('todo_write')
+    #     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+    #     markup.add(u'Cancel')
+    #     message = u'Please, write your task'
+    #     return message, markup
 
     def todo_write(self):
         if self.update['text'].strip() == u'Cancel':
@@ -147,11 +205,25 @@ class ToDoBot(telebot.TeleBot, object):
             if self.update['text'] in ['/todo', '/completed']:
                 message = u'Cannot write task: {}'.format(self.update['text'])
             else:
-                new_tsk = TDO.Task.from_json(self.update)
+                user = self.users_db.find({"user_id": self.update['from']['id']})
+                to_id = ''
+                if u"tmp{}".format(self.update['chat']['id']) in user:
+                    to_id = user[u"tmp{}".format(self.update['chat']['id'])]
+                    self.users_db.update({"user_id": self.update['from']['id']},
+                        {"$unset": {u"tmp{}".format(self.update['chat']['id']):''}})
+                new_tsk = TDO.Task.from_json(self.update, to_id)
                 self.tasks_db.insert_one(new_tsk.__dict__)
                 message = u'New task {}'.format(emoji_sparkles)
         markup = self._create_initial()
         self._change_state('initial')
+        return message, markup
+
+    def todo_choose_list(self):
+        user = self.users_db.find_one({"user_id": self.update['from']['id']})
+        if float(user['expire_date']) > time.time(): # expired
+            return self.todo()
+        message = u'Not implemented'
+        markup = self._create_initial()
         return message, markup
 
     def remove_task(self, text):
@@ -205,17 +277,28 @@ class ToDoBot(telebot.TeleBot, object):
         markup = self._create_initial()
         return message, markup
 
-    def completed(self):
-        cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
-        markup = self._create_initial()
-        message = u'Here are your completed tasks:\n'
-        message += '\n'.join([u'{} ({})'.format(task['text'], TDO.Update.strtime(task['end']))
-                              for task in cursor if 'text' in task])
+    def addons(self):
+        message = u'Please choose'
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
+        markup.add(u'Current {}'.format(emoji_clipboard), u'Finished {}'.format(emoji_square), u'Cancel {}'.format(emoji_return_arrow))
+        self._change_state('addons_choose')
         return message, markup
 
-    def todo_choose_list(self):
-        message = u'Not implemented'
+    def addons_choose(self):
+        text = self.update['text']
+        if text.startswith('Current'):
+            todos = self._all_lists()
+            message = '\n'.join([t['text'] for t in todos[''] if 'text' in t])
+        elif text.startswith('Finished'):
+            cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
+            message = '\n'.join([u'{} ({})'.format(task['text'], TDO.Update.strtime(task['end']))
+                                  for task in cursor if 'text' in task])
+        elif text.startswith('Cancel'):
+            message = u'Choose action'
+        else:
+            message = u'Unrecognized add-on.\n'
         markup = self._create_initial()
+        self._change_state('initial')
         return message, markup
 
     def execute(self):
@@ -229,21 +312,32 @@ class ToDoBot(telebot.TeleBot, object):
         print
         print 'Started with state', state
 
+        # mm = 'Return to initial', self._create_initial()
+
         if state == 'initial':
             text= self.update['text'].strip()
-            if text in ['/todo']:
+            if text == self.todo_name:
                 mm = self.todo()
-            elif text in ['/completed']:
-                mm = self.completed()
+            elif text == self.addons_name:
+                mm = self.addons()
             else:
                 texts = [task['text'] for task in self._tasks_from(lst='') if 'text' in task]
                 if text in texts:
                     mm = self.remove()
         elif state == 'todo_write':
             mm = self.todo_write()
+        elif state == 'todo_create_list':
+            mm = self.todo_create_list()
+        elif state == 'todo_write_list':
+            mm = self.todo_write_list()
+        elif state == 'addons_choose':
+            mm = self.addons_choose()
         elif state == 'todo_choose_list':
             mm = self.todo_choose_list()
         elif state == 'remove_confirm':
             mm = self.remove_confirm()
+        else:
+            mm = 'Return to initial menu', self._create_initial()
+            self._change_state('initial')
 
         return mm

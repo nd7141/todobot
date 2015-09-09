@@ -80,7 +80,7 @@ class Task(Jsonish):
         chat_id = obj['chat']['id']
         from_id = obj['from']['id']
         created = obj['date']
-        if to_id is None:
+        if not to_id:
             to_id = ''
         return Task(message_id, obj.get('text', ''), chat_id, from_id, created, to_id)
 

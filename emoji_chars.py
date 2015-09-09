@@ -22,6 +22,10 @@ emoji_cross = u"\u274C"
 emoji_check_mark = u"\u2714"
 emoji_no_entry = u"\U0001F6AB"
 emoji_sad = u"\U0001F61E"
+emoji_plus = u'\u2795'
+emoji_rocket = u'\U0001F680'
+emoji_return_arrow = u"\u21A9"
+emoji_square = u"\u25FB"
 
 if __name__ == "__main__":
     console = []
