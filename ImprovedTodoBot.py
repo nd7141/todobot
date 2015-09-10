@@ -148,7 +148,7 @@ class ToDoBot(telebot.TeleBot, object):
             self._change_state('todo_write')
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add(u'Cancel')
-            message = u'Please, write your task {}. For example: Buy shoes.'.format(emoji_pencil)
+            message = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
         else:
             todos = self._all_lists()
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -179,7 +179,7 @@ class ToDoBot(telebot.TeleBot, object):
             lst = self.update['text'][idx+2:]
             print 'lst', lst
             if idx > 0 and lst in todos:
-                message = u'Please, write your task {}. For example: Buy shoes.'.format(emoji_pencil)
+                message = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
                 markup.add('Cancel')
                 self._change_state('todo_write')
@@ -286,6 +286,10 @@ class ToDoBot(telebot.TeleBot, object):
 
         if state == 'initial':
             text= self.update['text'].strip()
+            if text == 'Cancel':
+                message  = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
+                markup = self._create_initial()
+                return message, markup
             if text == self.todo_name:
                 mm = self.todo()
             elif text == self.addons_name:
