@@ -26,6 +26,11 @@ emoji_plus = u'\u2795'
 emoji_rocket = u'\U0001F680'
 emoji_return_arrow = u"\u21A9"
 emoji_square = u"\u25FB"
+emoji_boxcheck = u'\u2611'
+emoji_open_folder = u'\U0001F4C2'
+emoji_floppy = u'\U0001F4BE'
+emoji_bomb = u'\U0001F4A3'
+emoji_star = u'\u2B50'
 
 if __name__ == "__main__":
     console = []
