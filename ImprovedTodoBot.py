@@ -133,12 +133,11 @@ class ToDoBot(telebot.TeleBot, object):
         markup.add(self.addons_name)
         todos = self._all_lists()
         if '' in todos:
-            markup.add(*[u"{} ({})".format(task['text'], 'Default') for task in todos[''] if 'text' in task])
-        for todo in todos:
-            if todo:
-                for task in todos[todo]:
-                    if 'text' in task:
-                        markup.add(u"{} ({})".format(task['text'], todo))
+            markup.add(*[task['text'] for task in todos[''] if 'text' in task])
+        lists = sorted([u"{} ({})".format(todo, len(todos[todo])) for todo in todos if todo], key=unicode.lower)
+        l = 2
+        for i in xrange(0, len(lists), l):
+            markup.row(*lists[i:i+l])
         return markup
 
     # 0 menu
@@ -153,9 +152,11 @@ class ToDoBot(telebot.TeleBot, object):
             todos = self._all_lists()
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add(u'Create a new Todo list {}'.format(emoji_open_folder))
-            for i, todo in enumerate(todos):
+            i = 0
+            for todo in todos:
                 if todo:
-                    markup.add(u"{}. {}".format(i+1, todo))
+                    i+= 1
+                    markup.add(u"{}. {}".format(i, todo))
             markup.add(u'Cancel')
             message = u'Write task to Default list {} or Create a new one {}'.format(emoji_pencil, emoji_open_folder)
             self._change_state('todo_create_list')
@@ -247,6 +248,41 @@ class ToDoBot(telebot.TeleBot, object):
         markup = self._create_initial()
         return message, markup
 
+    def remove_from_list(self, lst):
+        todos = self._all_lists()
+        tasks = [task['text'] for task in todos[lst] if 'text' in task]
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
+        markup.add(*tasks)
+        markup.add(u'Cancel')
+        message = u'Choose task'
+        self._change_state('remove_list_task')
+        self.users_db.update({"user_id": self.update['from']['id']},
+                             {"$set": {u"tmp{}".format(self.update['chat']['id']): lst}})
+        return message, markup
+
+    def remove_list_task(self):
+        if self.update['text'] == u'Cancel':
+            message = u'Done {}'.format(emoji_boxcheck)
+        else:
+            todos = self._all_lists()
+            user = self.users_db.find_one({"user_id": self.update['from']['id']})
+            lst = user.get(u"tmp{}".format(self.update['chat']['id']), 'NONE')
+            tasks = todos[lst]
+            for task in tasks:
+                print (self.update['text'], task['text'])
+                if 'text' in task and task['text'] == self.update['text']:
+                    self.tasks_db.update({"_id": task["_id"]},
+                        {"$set": {"finished": True, "end": time.time()}})
+                    message = u'Finished "{}" {}'.format(self.update['text'], emoji_star)
+                    break
+            else:
+                message= u'No such task'
+
+        self._change_state('initial')
+        markup = self._create_initial()
+        return message, markup
+
+
     def addons(self):
         message = u'Choose add-on {}'.format(emoji_bomb)
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
@@ -282,8 +318,6 @@ class ToDoBot(telebot.TeleBot, object):
         print
         print 'Started with state', state
 
-        # mm = 'Return to initial', self._create_initial()
-
         if state == 'initial':
             text= self.update['text'].strip()
             if text == 'Cancel':
@@ -296,14 +330,13 @@ class ToDoBot(telebot.TeleBot, object):
                 mm = self.addons()
             else:
                 s = self.update['text']
-                text = s[:s.rfind('(') - 1]
-                todo = re.findall(r'\(([^\)]+)\)', s)[-1] # match words in parentheses with ending list
-                if todo == 'Default':
-                    todo = ''
-                texts = [task['text'] for task in self._tasks_from(lst=todo) if 'text' in task]
-                print 'texts', texts
-                if text in texts:
-                    mm = self.remove(text, todo)
+                todos = self._all_lists()
+                if '' in todos:
+                    texts = [task['text'] for task in todos[''] if 'text' in task]
+                    if s in texts:
+                        mm = self.remove(s, '')
+                elif s.split()[0] in todos:
+                    mm = self.remove_from_list(s.split()[0])
         elif state == 'todo_write':
             mm = self.todo_write()
         elif state == 'todo_create_list':
@@ -314,6 +347,8 @@ class ToDoBot(telebot.TeleBot, object):
             mm = self.addons_choose()
         elif state == 'todo_choose_list':
             mm = self.todo_choose_list()
+        elif state == 'remove_list_task':
+            mm = self.remove_list_task()
         else:
             mm = 'Return to initial menu', self._create_initial()
             self._change_state('initial')
