@@ -82,11 +82,10 @@ class Task(Jsonish):
         created = obj['date']
         if not to_id:
             to_id = ''
-        return Task(message_id, obj.get('text', ''), chat_id, from_id, created, to_id)
+        return Task(message_id, chat_id, from_id, created, to_id)
 
-    def __init__(self, message_id, text, chat_id, from_id, created, to_id):
+    def __init__(self, message_id, chat_id, from_id, created, to_id):
         self.message_id = message_id
-        self.text = text
         self.chat_id = chat_id
         self.from_id = from_id
         self.created = created
@@ -113,6 +112,18 @@ class Update(object):
     @staticmethod
     def strtime(unix):
         return datetime.datetime.utcfromtimestamp(int(unix)).strftime('%d %B %Y %H:%M:%S')
+
+class Text(object):
+    @classmethod
+    def from_json(cls, obj):
+        text = obj['text'] if 'text' in obj else ''
+        message_id = obj['message_id']
+        return Text(message_id, text)
+
+    def __init__(self, message_id, text):
+        self.message_id = message_id
+        self.text = text
+
 
 
 if __name__ == "__main__":
