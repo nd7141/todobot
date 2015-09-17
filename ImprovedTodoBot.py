@@ -29,7 +29,6 @@ class ToDoBot(telebot.TeleBot, object):
 
         self.commands = ['todo', 't',
                          ]
-
         self.commands += map(lambda s: s + "@todobbot", self.commands)
         self.todo_name = u'New task {}'.format(emoji_plus)
         self.addons_name = u'Add-ons {}'.format(emoji_rocket)
@@ -102,14 +101,13 @@ class ToDoBot(telebot.TeleBot, object):
             except AttributeError:
                 print 'Keyboard', None
             if result:
-                self.send_message(msg['chat']['id'], result, reply_markup=markup)
+                self.send_message(msg['chat']['id'], result, reply_markup=markup, reply_to_message_id=msg['message_id'])
 
     def set_update_listener(self):
         self.update_listener.append(self.listener)
 
     def set_update(self, update):
         self.update = update.update
-
 
     def _tasks_from(self, lst):
         return list(self.tasks_db.find({"chat_id": self.update['chat']['id'], 'to_id': lst, 'finished': False}))
@@ -154,12 +152,12 @@ class ToDoBot(telebot.TeleBot, object):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
         if  float(user.get('expiry_date', 0)) < time.time(): # expired
             self._change_state('todo_write')
-            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
             markup.add(u'Cancel')
             message = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
         else:
             todos = self._all_lists()
-            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
             markup.add(u'Create a new Todo list {}'.format(emoji_open_folder))
             i = 0
             for todo in todos:
@@ -179,7 +177,7 @@ class ToDoBot(telebot.TeleBot, object):
             message = u'Done {}'.format(emoji_boxcheck)
             self._change_state('initial')
         elif self.update['text'].startswith(u'Create a new Todo list'):
-            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
             markup.add(u'Cancel')
             message = u'How do you call this list?'
             self._change_state('todo_write_list')
@@ -190,7 +188,7 @@ class ToDoBot(telebot.TeleBot, object):
             print 'lst', lst
             if idx > 0 and lst in todos:
                 message = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
-                markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+                markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                 markup.add('Cancel')
                 self._change_state('todo_write')
                 self.users_db.update({"user_id": self.update['from']['id']},
@@ -208,7 +206,7 @@ class ToDoBot(telebot.TeleBot, object):
             message = u'Done {}'.format(emoji_boxcheck)
         else:
             message = u'Write task to {} list {}'.format(self.update['text'], emoji_pencil)
-            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
             self.users_db.update({"user_id": self.update['from']['id']},
                 {"$set": {u"tmp{}".format(self.update['chat']['id']): self.update['text']}})
             self._change_state('todo_write')
@@ -264,7 +262,7 @@ class ToDoBot(telebot.TeleBot, object):
     def remove_from_list(self, lst):
         todos = self._all_lists()
         tasks = [self._get_text(task['message_id']) for task in todos[lst] if 'message_id' in task]
-        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
         markup.add(*tasks)
         markup.add(u'Cancel')
         message = u'Choose task'
@@ -297,7 +295,7 @@ class ToDoBot(telebot.TeleBot, object):
 
     def addons(self):
         message = u'Choose add-on {}'.format(emoji_bomb)
-        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
         markup.add(u'Current {}'.format(emoji_clipboard), u'Finished {}'.format(emoji_square), u'Cancel {}'.format(emoji_return_arrow))
         self._change_state('addons_choose')
         return message, markup
