@@ -31,6 +31,7 @@ emoji_open_folder = u'\U0001F4C2'
 emoji_floppy = u'\U0001F4BE'
 emoji_bomb = u'\U0001F4A3'
 emoji_star = u'\u2B50'
+emoji_email = u'\U0001F4E7'
 
 if __name__ == "__main__":
     console = []

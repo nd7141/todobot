@@ -32,6 +32,7 @@ class ToDoBot(telebot.TeleBot, object):
         self.commands += map(lambda s: s + "@todobbot", self.commands)
         self.todo_name = u'New task {}'.format(emoji_plus)
         self.addons_name = u'Add-ons {}'.format(emoji_rocket)
+        self.support_name = u'Support {}'.format(emoji_email)
 
     def get_update(self):
         new_messages = []
@@ -145,6 +146,7 @@ class ToDoBot(telebot.TeleBot, object):
         l = 2
         for i in xrange(0, len(lists), l):
             markup.row(*lists[i:i+l])
+        markup.add(u'Support {}'.format(emoji_email))
         return markup
 
     # 0 menu
@@ -317,6 +319,11 @@ class ToDoBot(telebot.TeleBot, object):
         self._change_state('initial')
         return message, markup
 
+    def support(self):
+        message = u'You can write us an email at support@thetodobot.com\n or chat with us at thetodobot.com {}'.format(emoji_wink)
+        markup = self._create_initial()
+        return message, markup
+
     def execute(self):
         mm = None, None
 
@@ -338,6 +345,8 @@ class ToDoBot(telebot.TeleBot, object):
                 mm = self.todo()
             elif text == self.addons_name:
                 mm = self.addons()
+            elif text == self.support_name:
+                mm = self.support()
             else:
                 s = self.update['text']
                 todos = self._all_lists()
