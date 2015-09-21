@@ -33,6 +33,7 @@ class ToDoBot(telebot.TeleBot, object):
         self.todo_name = u'New task {}'.format(emoji_plus)
         self.addons_name = u'Add-ons {}'.format(emoji_rocket)
         self.support_name = u'Support {}'.format(emoji_email)
+        self.notify_name = u'Notify {}'.format(emoji_alarm)
 
     def get_update(self):
         new_messages = []
@@ -146,7 +147,8 @@ class ToDoBot(telebot.TeleBot, object):
         l = 2
         for i in xrange(0, len(lists), l):
             markup.row(*lists[i:i+l])
-        markup.add(u'Support {}'.format(emoji_email))
+        markup.add(self.notify_name)
+        markup.add(self.support_name)
         return markup
 
     # 0 menu
@@ -324,6 +326,13 @@ class ToDoBot(telebot.TeleBot, object):
         markup = self._create_initial()
         return message, markup
 
+    def notify(self):
+        message = u"When do you want to get notification?"
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
+        markup.add(*[u'1 hour', u'3 Hours', u'1 day', u'Specific time'])
+        self._change_state('notify_select')
+        return message, markup
+
     def execute(self):
         mm = None, None
 
@@ -347,6 +356,8 @@ class ToDoBot(telebot.TeleBot, object):
                 mm = self.addons()
             elif text == self.support_name:
                 mm = self.support()
+            elif text == self.notify_name:
+                mm = self.notify()
             else:
                 s = self.update['text']
                 todos = self._all_lists()
