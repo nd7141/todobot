@@ -14,6 +14,23 @@ from emoji_chars import *
 from messages import *
 import markups
 import re
+from geopy import geocoders
+from dateutil.parser import parse
+import datetime
+
+
+def find_in_list(lst, el):
+    try:
+        idx = lst.index(el)
+    except ValueError:
+        idx = -1
+    return idx
+
+def parse_date(s):
+    try:
+        return parse(s)
+    except:
+        return None
 
 class ToDoBot(telebot.TeleBot, object):
 
@@ -33,7 +50,9 @@ class ToDoBot(telebot.TeleBot, object):
         self.todo_name = u'New task {}'.format(emoji_plus)
         self.addons_name = u'Add-ons {}'.format(emoji_rocket)
         self.support_name = u'Support {}'.format(emoji_email)
-        self.notify_name = u'Notify {}'.format(emoji_alarm)
+        self.notify_name = u'Remind me {}'.format(emoji_alarm)
+
+        self.googlegeo = geocoders.GoogleV3()
 
     def get_update(self):
         new_messages = []
@@ -327,11 +346,89 @@ class ToDoBot(telebot.TeleBot, object):
         return message, markup
 
     def notify(self):
-        message = u"When do you want to get notification?"
+        message = u"When to remind?"
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
-        markup.add(*[u'1 hour', u'3 Hours', u'1 day', u'Specific time'])
+        markup.add(*[u'1 hour', u'3 Hours', u'1 day', u'Specific time', u'Cancel'])
         self._change_state('notify_select')
         return message, markup
+
+    def notify_select(self):
+        options = [u'1 hour', u'3 Hours', u'1 day', u'Specific time', u'Cancel']
+        idx = find_in_list(options, self.update['text'])
+        print 'idx', idx
+        if idx in [0,1,2,4]:
+            message = u'Done {}'.format(emoji_boxcheck)
+            markup = self._create_initial()
+            self._change_state('initial')
+            if idx == 0:
+                self.users_db.update({"user_id": self.update['chat']['id']},
+                    {"$set": {"reminder": time.time() + 3600}})
+            elif idx == 1:
+                self.users_db.update({"user_id": self.update['chat']['id']},
+                    {"$set": {"reminder": time.time() + 3600*3}})
+            elif idx == 2:
+                self.users_db.update({"user_id": self.update['chat']['id']},
+                    {"$set": {"reminder": time.time() + 3600*24}})
+        elif idx == 3:
+            user = self.users_db.find_one({"user_id": self.update['from']['id']})
+            if not ('city' in user and user['city']):
+                message = u"Let's configure your city. Type the name of you city."
+                markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                markup.add(u'Cancel')
+                self._change_state('notify_choose_city')
+            else:
+                message, markup = self.notify_write_time()
+
+        return message, markup
+
+    def notify_choose_city(self):
+        if self.update['text'] == u'Cancel':
+            message = u'Done {}'.format(emoji_boxcheck)
+            markup = self._create_initial()
+            self._change_state('initial')
+            mm = message, markup
+        else:
+            place, (lat, lng) = self.googlegeo.geocode(self.update['text'])
+            self.users_db.update({"user_id": self.update['from']['id']},
+                {"$set": {'city': place, 'lat': lat, 'lng': lng}})
+            mm = self.notify_write_time()
+        return mm
+
+    def notify_write_time(self):
+        message = u'Write your time\n Example: Saturday 7:00\n 12 Aug 12:30'
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+        markup.add(u'Cancel')
+        self._change_state('notify_get_time')
+
+        return message, markup
+
+    def notify_get_time(self):
+        if self.update['text'] == u'Cancel':
+            message = u'Done {}'.format(emoji_boxcheck)
+            markup = self._create_initial()
+            self._change_state('initial')
+        else:
+            date = parse_date(self.update['text'])
+            if date is not None:
+                user = self.users_db.find_one({"user_id": self.update['from']['id']})
+                tz = self.googlegeo.timezone((user['lat'], user['lng']))
+                offset = int(date.replace(tzinfo=tz).strftime('%s'))
+                if offset > time.time():
+                    message = u'Done {}'.format(emoji_boxcheck)
+                    markup = self._create_initial()
+                    self._change_state('initial')
+                    self.users_db.update({"user_id": self.update['chat']['id']},
+                        {"$set": {"reminder": offset}})
+                else:
+                    message = u'The date is passed. Please type again.'
+                    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                    markup.add(u'Cancel')
+            else:
+                message = u'The date is not correct.\n Example: Saturday 7:00\n 12 Aug 12:30'
+                markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                markup.add(u'Cancel')
+        return message, markup
+
 
     def execute(self):
         mm = None, None
@@ -343,6 +440,9 @@ class ToDoBot(telebot.TeleBot, object):
 
         print
         print 'Started with state', state
+
+        if 'text' not in self.update:
+            return mm
 
         if state == 'initial':
             text= self.update['text'].strip()
@@ -381,8 +481,14 @@ class ToDoBot(telebot.TeleBot, object):
             mm = self.todo_choose_list()
         elif state == 'remove_list_task':
             mm = self.remove_list_task()
+        elif state == 'notify_select':
+            mm = self.notify_select()
+        elif state == 'notify_choose_city':
+            mm = self.notify_choose_city()
+        elif state == 'notify_get_time':
+            mm = self.notify_get_time()
         else:
-            mm = 'Return to initial menu', self._create_initial()
+            mm = u'Return to initial menu {}'.format(emoji_return_arrow), self._create_initial()
             self._change_state('initial')
 
         return mm

@@ -67,7 +67,7 @@ if __name__ == "__main__":
         os.remove('update.txt')
 
 
-    period = 3600 # seconds to relaunch script
+    period = 600 # seconds to relaunch script
     start = time.time()
 
     while True:
