@@ -9,6 +9,7 @@ import ToDoBot as TDB
 from emoji_chars import *
 import KeyTodoBot as KTDB
 import ImprovedTodoBot as ITDB
+from pubsub import Publisher
 
 
 def get_token(filename):
@@ -46,6 +47,7 @@ if __name__ == "__main__":
     groups_db = db['groups_db']
     tasks_db = db['tasks_db']
     text_db = db['text_db']
+    reminder_db = Publisher(db, 'reminder_db')
     # test_users = db['test_users']
     # test_groups = db['test_groups']
 
@@ -54,7 +56,7 @@ if __name__ == "__main__":
     geopy_user = get_token('geopy_username.txt')
     botan_token = int(get_token('botan_token.txt'))
 
-    td_bot = ITDB.ToDoBot(token, owm_token, users_db, groups_db, tasks_db, text_db, geopy_user, botan_token)
+    td_bot = ITDB.ToDoBot(token, owm_token, users_db, groups_db, tasks_db, text_db, reminder_db, geopy_user, botan_token)
     td_bot.set_update_listener()
     td_bot.polling()
 

@@ -34,12 +34,13 @@ def parse_date(s):
 
 class ToDoBot(telebot.TeleBot, object):
 
-    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, text_db, geopy_user, botan_token):
+    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, text_db, reminder_db, geopy_user, botan_token):
         super(self.__class__, self).__init__(token)
         self.users_db = users_db
         self.groups_db = groups_db
         self.tasks_db = tasks_db
         self.text_db = text_db
+        self.reminder_db = reminder_db
         self.owm = pyowm.OWM(owm_token)
         self.geopy_user = geopy_user
         self.botan_token = botan_token
@@ -345,6 +346,7 @@ class ToDoBot(telebot.TeleBot, object):
         markup = self._create_initial()
         return message, markup
 
+    # notify 0
     def notify(self):
         message = u"When to remind?"
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
@@ -352,23 +354,25 @@ class ToDoBot(telebot.TeleBot, object):
         self._change_state('notify_select')
         return message, markup
 
+    # notify 1
     def notify_select(self):
+        message = None
+        markup = None
         options = [u'1 hour', u'3 Hours', u'1 day', u'Specific time', u'Cancel']
         idx = find_in_list(options, self.update['text'])
-        print 'idx', idx
         if idx in [0,1,2,4]:
             message = u'Done {}'.format(emoji_boxcheck)
             markup = self._create_initial()
             self._change_state('initial')
             if idx == 0:
-                self.users_db.update({"user_id": self.update['chat']['id']},
-                    {"$set": {"reminder": time.time() + 3600}})
+                self.reminder_db.push({"chat_id": self.update['chat']['id'],
+                                       "time_at": time.time() + 3600})
             elif idx == 1:
-                self.users_db.update({"user_id": self.update['chat']['id']},
-                    {"$set": {"reminder": time.time() + 3600*3}})
+                self.reminder_db.push({"chat_id": self.update['chat']['id'],
+                                       "time_at": time.time() + 3600*3})
             elif idx == 2:
-                self.users_db.update({"user_id": self.update['chat']['id']},
-                    {"$set": {"reminder": time.time() + 3600*24}})
+                self.reminder_db.push({"chat_id": self.update['chat']['id'],
+                                       "time_at": time.time() + 3600*24})
         elif idx == 3:
             user = self.users_db.find_one({"user_id": self.update['from']['id']})
             if not ('city' in user and user['city']):
@@ -381,6 +385,7 @@ class ToDoBot(telebot.TeleBot, object):
 
         return message, markup
 
+    # notify 2
     def notify_choose_city(self):
         if self.update['text'] == u'Cancel':
             message = u'Done {}'.format(emoji_boxcheck)
@@ -394,6 +399,7 @@ class ToDoBot(telebot.TeleBot, object):
             mm = self.notify_write_time()
         return mm
 
+    # notify 3
     def notify_write_time(self):
         message = u'Write your time\n Example: Saturday 7:00\n 12 Aug 12:30'
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
@@ -402,6 +408,7 @@ class ToDoBot(telebot.TeleBot, object):
 
         return message, markup
 
+    # notify 4
     def notify_get_time(self):
         if self.update['text'] == u'Cancel':
             message = u'Done {}'.format(emoji_boxcheck)
@@ -417,8 +424,8 @@ class ToDoBot(telebot.TeleBot, object):
                     message = u'Done {}'.format(emoji_boxcheck)
                     markup = self._create_initial()
                     self._change_state('initial')
-                    self.users_db.update({"user_id": self.update['chat']['id']},
-                        {"$set": {"reminder": offset}})
+                    self.reminder_db.push({"chat_id": self.update['chat']['id'],
+                                       "time_at": offset})
                 else:
                     message = u'The date is passed. Please type again.'
                     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
@@ -428,7 +435,6 @@ class ToDoBot(telebot.TeleBot, object):
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                 markup.add(u'Cancel')
         return message, markup
-
 
     def execute(self):
         mm = None, None
