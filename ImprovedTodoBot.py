@@ -447,6 +447,62 @@ class ToDoBot(telebot.TeleBot, object):
                 markup.add(u'Cancel')
         return message, markup
 
+    def notifications(self):
+        user = self.users_db.find_one({"user_id": self.update['from']['id']})
+        if 'lat' not in user:
+            message = u"Let's first set up your city."
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+            markup.add(u'Cancel')
+            self._change_state('notifications_choose_city')
+        else:
+            message = u'We will send you an update daily. What time do you want?\nExample: 7:00'
+            markup = telebot.types.ReplyKeyboardMarkup(selective=True, resize_keyboard=True, row_width=1)
+            markup.add(u'Turn off', u'Cancel')
+            self._change_state('notifications_choose_time')
+        return message, markup
+
+    def notifications_choose_city(self):
+        if self.update['text'] == u'Cancel':
+            message = u'Done {}'.format(emoji_boxcheck)
+            markup = self._create_initial()
+            self._change_state('initial')
+        else:
+            data = self.googlegeo.geocode(self.update['text'])
+            if data:
+                place, (lat, lng) = data
+                self.users_db.update({"user_id": self.update['from']['id']},
+                    {"$set": {'city': place, 'lat': lat, 'lng': lng}})
+                message = u'City: {}'.format(place)
+                message += u'\nWe will send you an update daily. What time do you want?\nExample: 7:00'
+                markup = telebot.types.ReplyKeyboardMarkup(selective=True, resize_keyboard=True, row_width=1)
+                markup.add(u'Turn off', u'Cancel')
+                self._change_state('notifications_choose_time')
+            else:
+                message = u"Do not know this city. Type again."
+                markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                markup.add(u'Cancel')
+        return message, markup
+
+    def notifications_choose_time(self):
+        if self.update['text'] == u'Cancel':
+            message = u'Done {}'.format(emoji_boxcheck)
+            markup = self._create_initial()
+            self._change_state('initial')
+        elif self.update['text'] == u'Turn off':
+            self.reminder_db.remove({"chat_id": self.update['chat']['id'], "repetitive": True})
+            message = u'No notifications'
+            markup = self._create_initial()
+            self._change_state('initial')
+        else:
+            date = parse_date(self.update['text'])
+            if date is not None:
+                user = self.users_db.find_one({"user_id": self.update['from']['id']})
+                tz = self.googlegeo.timezone((user['lat'], user['lng']))
+                offset = int(date.replace(tzinfo=tz).strftime('%s'))
+                # TODO consider only hour, minute, and second 
+
+
+
     # settings 0
     def settings(self):
         message = u'Choose'
