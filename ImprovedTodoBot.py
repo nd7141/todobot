@@ -365,13 +365,13 @@ class ToDoBot(telebot.TeleBot, object):
             markup = self._create_initial()
             self._change_state('initial')
             if idx == 0:
-                self.reminder_db.push({"chat_id": self.update['chat']['id'],
+                self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "time_at": time.time() + 3600})
             elif idx == 1:
-                self.reminder_db.push({"chat_id": self.update['chat']['id'],
+                self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "time_at": time.time() + 3600*3})
             elif idx == 2:
-                self.reminder_db.push({"chat_id": self.update['chat']['id'],
+                self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "time_at": time.time() + 3600*24})
         elif idx == 3:
             user = self.users_db.find_one({"user_id": self.update['from']['id']})
@@ -424,7 +424,7 @@ class ToDoBot(telebot.TeleBot, object):
                     message = u'Done {}'.format(emoji_boxcheck)
                     markup = self._create_initial()
                     self._change_state('initial')
-                    self.reminder_db.push({"chat_id": self.update['chat']['id'],
+                    self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "time_at": offset})
                 else:
                     message = u'The date is passed. Please type again.'

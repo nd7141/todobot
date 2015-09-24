@@ -20,11 +20,14 @@ tb = TeleBot(token)
 client = pymongo.MongoClient()
 db = client.db
 tasks_db = db.tasks_db
+text_db = db.text_db
+reminder_db = db.reminder_db
 
 
 # a wrapper to send a message (used inside Timer)
 def wrapper(chat_id, message):
     def send_reminder():
+        print 'inside send_reminder'
         tb.send_message(chat_id, message)
     return send_reminder
 
@@ -38,13 +41,26 @@ def create_timer(data):
         messages = ['Your tasks']
         count = 0
         for task in tasks_db.find({"chat_id": chat_id, "finished": False}).sort('created'):
-            if 'text' in task:
+            content = text_db.find_one({"message_id": task["message_id"]})
+            if 'text' in content:
                 count += 1
-                messages.append("{}. {}".format(count, task['text']))
+                messages.append(u"{}. {}".format(count, content['text']))
         message = '\n'.join(messages)
-        Timer(offset, wrapper(chat_id, message))
+        func = wrapper(chat_id, message)
+        Timer(offset, func).start()
         print 'Just released another timer'
+    else:
+        print 'The date is passed'
+
+print 'Start listening...'
+while True:
+    if reminder_db.count():
+        for data in reminder_db.find():
+            create_timer(data)
+            reminder_db.remove(data)
+    time.sleep(1)
 
 # create a subscriber to listen to reminder_db for next record to send to create_timer
-subscriber = Subscriber(db, 'reminder_db', callback=create_timer)
-subscriber.listen()
+# subscriber = Subscriber(db, 'reminder_db', callback=create_timer)
+# print 'Starting subscriber...'
+# subscriber.listen()

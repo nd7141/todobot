@@ -3,7 +3,7 @@
 # taken from: https://github.com/patrys/pymongo-pubsub/tree/master/pymongo_pubsub
 from __future__ import division
 
-import time
+import time, pymongo
 
 class Publisher(object):
 
@@ -45,7 +45,7 @@ class Subscriber(object):
         self.collection = self.init_collection(database, collection_name)
         self.callback = callback
         self.check_interval = check_interval
-        self.iterator = self.collection.find(matching, tailable=True)
+        self.iterator = self.collection.find(matching, cursor_type=pymongo.cursor.CursorType.TAILABLE)
 
     def init_collection(self, database, collection_name):
         if not collection_name in database.collection_names():

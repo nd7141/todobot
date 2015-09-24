@@ -40,6 +40,7 @@ def send_update(bot, users_db, groups_db, message):
 
 if __name__ == "__main__":
 
+
     # setup databases
     client = pymongo.MongoClient()
     db = client.db
@@ -47,7 +48,8 @@ if __name__ == "__main__":
     groups_db = db['groups_db']
     tasks_db = db['tasks_db']
     text_db = db['text_db']
-    reminder_db = Publisher(db, 'reminder_db')
+    reminder_db = db['reminder_db']
+    # reminder_db = Publisher(db, 'reminder_db')
     # test_users = db['test_users']
     # test_groups = db['test_groups']
 
