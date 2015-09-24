@@ -52,6 +52,7 @@ class ToDoBot(telebot.TeleBot, object):
         self.addons_name = u'Add-ons {}'.format(emoji_rocket)
         self.support_name = u'Support {}'.format(emoji_email)
         self.notify_name = u'Remind me {}'.format(emoji_alarm)
+        self.settings_name = u'Settings {}'.format(emoji_wrench)
 
         self.googlegeo = geocoders.GoogleV3()
 
@@ -158,8 +159,9 @@ class ToDoBot(telebot.TeleBot, object):
 
     def _create_initial(self):
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
-        markup.add(self.todo_name)
-        markup.add(self.addons_name)
+        markup.row(self.todo_name, self.addons_name)
+        markup.row(self.notify_name, self.support_name)
+        markup.row(self.settings_name)
         todos = self._all_lists()
         if '' in todos:
             markup.add(*[self._get_text(task['message_id']) for task in todos[''] if 'message_id' in task])
@@ -167,8 +169,6 @@ class ToDoBot(telebot.TeleBot, object):
         l = 2
         for i in xrange(0, len(lists), l):
             markup.row(*lists[i:i+l])
-        markup.add(self.notify_name)
-        markup.add(self.support_name)
         return markup
 
     # 0 menu
@@ -342,7 +342,7 @@ class ToDoBot(telebot.TeleBot, object):
         return message, markup
 
     def support(self):
-        message = u'You can write us an email at support@thetodobot.com\n or chat with us at thetodobot.com {}'.format(emoji_wink)
+        message = u'You can email us at support@thetodobot.com\n or chat with us at thetodobot.com {}'.format(emoji_wink)
         markup = self._create_initial()
         return message, markup
 
@@ -376,7 +376,7 @@ class ToDoBot(telebot.TeleBot, object):
         elif idx == 3:
             user = self.users_db.find_one({"user_id": self.update['from']['id']})
             if not ('city' in user and user['city']):
-                message = u"Let's configure your city. Type the name of you city."
+                message = u"First, let's configure your city. Type the name of your city."
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                 markup.add(u'Cancel')
                 self._change_state('notify_choose_city')
@@ -391,13 +391,24 @@ class ToDoBot(telebot.TeleBot, object):
             message = u'Done {}'.format(emoji_boxcheck)
             markup = self._create_initial()
             self._change_state('initial')
-            mm = message, markup
         else:
-            place, (lat, lng) = self.googlegeo.geocode(self.update['text'])
-            self.users_db.update({"user_id": self.update['from']['id']},
-                {"$set": {'city': place, 'lat': lat, 'lng': lng}})
-            mm = self.notify_write_time()
-        return mm
+            try:
+                data = self.googlegeo.geocode(self.update['text'])
+            except:
+                message = u'Was unable to configure your city'
+                markup = self._create_initial()
+                self._change_state('initial')
+            else:
+                if data:
+                    place, (lat, lng) = data
+                    self.users_db.update({"user_id": self.update['from']['id']},
+                        {"$set": {'city': place, 'lat': lat, 'lng': lng}})
+                    message, markup = self.notify_write_time()
+                else:
+                    message = u'Please, type your city again.'
+                    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                    markup.add(u'Cancel')
+        return message, markup
 
     # notify 3
     def notify_write_time(self):
@@ -436,6 +447,53 @@ class ToDoBot(telebot.TeleBot, object):
                 markup.add(u'Cancel')
         return message, markup
 
+    # settings 0
+    def settings(self):
+        message = u'Choose'
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True, row_width=1)
+        markup.add(u'City {}'.format(emoji_globe), u'Cancel')
+        self._change_state('settings_select')
+        return message, markup
+
+    # settings 1
+    def settings_select(self):
+        message, markup = None, None
+        if self.update['text'] == u'Cancel':
+            message = u'Done {}'.format(emoji_boxcheck)
+            markup = self._create_initial()
+            self._change_state('initial')
+        elif self.update['text'] == u'City {}'.format(emoji_globe):
+            user = self.users_db.find_one({'user_id': self.update['from']['id']})
+            message = u''
+            if 'city' in user:
+                message = u"Your current city: {}\n".format(user['city'])
+            message += u"Type the name of your city."
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+            markup.add(u'Cancel')
+            self._change_state('settings_choose_city')
+        return message, markup
+
+    # settings 2
+    def settings_choose_city(self):
+        if self.update['text'] == u'Cancel':
+            message = u'Done {}'.format(emoji_boxcheck)
+            markup = self._create_initial()
+            self._change_state('initial')
+        else:
+            data = self.googlegeo.geocode(self.update['text'])
+            if data:
+                place, (lat, lng) = data
+                self.users_db.update({"user_id": self.update['from']['id']},
+                    {"$set": {'city': place, 'lat': lat, 'lng': lng}})
+                message = u'City: {}'.format(place)
+                markup = self._create_initial()
+                self._change_state('initial')
+            else:
+                message = u"Do not know this city. Type again."
+                markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                markup.add(u'Cancel')
+        return message, markup
+
     def execute(self):
         mm = None, None
 
@@ -464,6 +522,8 @@ class ToDoBot(telebot.TeleBot, object):
                 mm = self.support()
             elif text == self.notify_name:
                 mm = self.notify()
+            elif text == self.settings_name:
+                mm = self.settings()
             else:
                 s = self.update['text']
                 todos = self._all_lists()
@@ -493,6 +553,10 @@ class ToDoBot(telebot.TeleBot, object):
             mm = self.notify_choose_city()
         elif state == 'notify_get_time':
             mm = self.notify_get_time()
+        elif state == 'settings_select':
+            mm = self.settings_select()
+        elif state == 'settings_choose_city':
+            mm = self.settings_choose_city()
         else:
             mm = u'Return to initial menu {}'.format(emoji_return_arrow), self._create_initial()
             self._change_state('initial')

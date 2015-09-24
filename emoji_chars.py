@@ -33,6 +33,10 @@ emoji_bomb = u'\U0001F4A3'
 emoji_star = u'\u2B50'
 emoji_email = u'\U0001F4E7'
 emoji_alarm = u'\u23F0'
+emoji_wrench = u'\U0001F527'
+emoji_city = u'\U0001F306'
+emoji_curved_down = u'\u2935'
+emoji_globe = u'\U0001F30D'
 
 if __name__ == "__main__":
     console = []
