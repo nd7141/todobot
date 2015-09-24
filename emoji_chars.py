@@ -37,6 +37,7 @@ emoji_wrench = u'\U0001F527'
 emoji_city = u'\U0001F306'
 emoji_curved_down = u'\u2935'
 emoji_globe = u'\U0001F30D'
+emoji_hourglass = u'\u231B'
 
 if __name__ == "__main__":
     console = []

@@ -51,8 +51,9 @@ class ToDoBot(telebot.TeleBot, object):
         self.todo_name = u'New task {}'.format(emoji_plus)
         self.addons_name = u'Add-ons {}'.format(emoji_rocket)
         self.support_name = u'Support {}'.format(emoji_email)
-        self.notify_name = u'Remind me {}'.format(emoji_alarm)
+        self.notify_name = u'Remind me {}'.format(emoji_hourglass)
         self.settings_name = u'Settings {}'.format(emoji_wrench)
+        self.notifications_name = u'Notifications {}'.format(emoji_alarm)
 
         self.googlegeo = geocoders.GoogleV3()
 
@@ -135,6 +136,27 @@ class ToDoBot(telebot.TeleBot, object):
     def _tasks_from(self, lst):
         return list(self.tasks_db.find({"chat_id": self.update['chat']['id'], 'to_id': lst, 'finished': False}))
 
+    def write_user(self):
+        user = self.users_db.find_one({"user_id": self.update["from"]["id"]})
+        if not user:
+            user_json = TDO.User.from_json(self.update['from'], self.update['date'])
+            self.users_db.insert_one(user_json.__dict__)
+            return self.users_db.find_one({"user_id": self.update["from"]["id"]})
+        return user
+
+    def write_group(self):
+        if "title" in self.update["chat"]:
+            group = self.groups_db.find_one({"group_id": self.update["chat"]["id"]})
+            if group:
+                prts = group["participants"]
+                if self.update["from"]["id"] not in prts:
+                    prts.append(self.update["from"]["id"])
+                    self.groups_db.update({"_id": group["_id"]},
+                              {"$set": {"participants": prts}})
+            else:
+                group = TDO.Group.from_json(self.update["chat"], self.update["date"], self.update["from"]["id"])
+                self.groups_db.insert_one(group.__dict__)
+
     def _change_state(self, state):
         self.users_db.update({"user_id": self.update['from']['id']},
                              {"$set": {'state{}'.format(self.update['chat']['id']): state}})
@@ -161,7 +183,7 @@ class ToDoBot(telebot.TeleBot, object):
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
         markup.row(self.todo_name, self.addons_name)
         markup.row(self.notify_name, self.support_name)
-        markup.row(self.settings_name)
+        markup.row(self.notifications_name, self.settings_name)
         todos = self._all_lists()
         if '' in todos:
             markup.add(*[self._get_text(task['message_id']) for task in todos[''] if 'message_id' in task])
@@ -447,6 +469,7 @@ class ToDoBot(telebot.TeleBot, object):
                 markup.add(u'Cancel')
         return message, markup
 
+    # notifications 0
     def notifications(self):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
         if 'lat' not in user:
@@ -461,6 +484,7 @@ class ToDoBot(telebot.TeleBot, object):
             self._change_state('notifications_choose_time')
         return message, markup
 
+    # notifications 1
     def notifications_choose_city(self):
         if self.update['text'] == u'Cancel':
             message = u'Done {}'.format(emoji_boxcheck)
@@ -483,14 +507,15 @@ class ToDoBot(telebot.TeleBot, object):
                 markup.add(u'Cancel')
         return message, markup
 
+    # notifications 2
     def notifications_choose_time(self):
         if self.update['text'] == u'Cancel':
             message = u'Done {}'.format(emoji_boxcheck)
             markup = self._create_initial()
             self._change_state('initial')
         elif self.update['text'] == u'Turn off':
-            self.reminder_db.remove({"chat_id": self.update['chat']['id'], "repetitive": True})
-            message = u'No notifications'
+            self.reminder_db.remove({"chat_id": int(self.update['chat']['id']), "repetitive": True})
+            message = u'No more notifications'
             markup = self._create_initial()
             self._change_state('initial')
         else:
@@ -498,10 +523,23 @@ class ToDoBot(telebot.TeleBot, object):
             if date is not None:
                 user = self.users_db.find_one({"user_id": self.update['from']['id']})
                 tz = self.googlegeo.timezone((user['lat'], user['lng']))
-                offset = int(date.replace(tzinfo=tz).strftime('%s'))
-                # TODO consider only hour, minute, and second 
+                date = date.replace(tzinfo=tz)
+                now = datetime.datetime.now().replace(tzinfo=tz)
+                if date < now:
+                    offset = float(now.replace(day=now.day+1, hour=date.hour, minute=date.minute, second=date.second).strftime("%s"))
+                else:
+                    offset = float(now.replace(hour=date.hour, minute=date.minute, second=date.second).strftime("%s"))
 
-
+                self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
+                                             "time_at": offset, "repetitive": True})
+                message = u'Set a notification at {:02d}:{:02d} {}'.format(date.hour, date.minute, emoji_wink)
+                markup = self._create_initial()
+                self._change_state('initial')
+            else:
+                message = u'The date is not correct.\n Example: Saturday 7:00\n 12 Aug 12:30'
+                markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                markup.add(u'Cancel')
+        return message, markup
 
     # settings 0
     def settings(self):
@@ -555,6 +593,10 @@ class ToDoBot(telebot.TeleBot, object):
 
         print 'chat id', self.update['chat']['id']
 
+        # Write new user, group into database
+        user = self.write_user()
+        self.write_group()
+
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
         state = user.get('state{}'.format(self.update['chat']['id']), 'initial')
 
@@ -580,6 +622,8 @@ class ToDoBot(telebot.TeleBot, object):
                 mm = self.notify()
             elif text == self.settings_name:
                 mm = self.settings()
+            elif text == self.notifications_name:
+                mm = self.notifications()
             else:
                 s = self.update['text']
                 todos = self._all_lists()
@@ -613,6 +657,10 @@ class ToDoBot(telebot.TeleBot, object):
             mm = self.settings_select()
         elif state == 'settings_choose_city':
             mm = self.settings_choose_city()
+        elif state == 'notifications_choose_city':
+            mm = self.notifications_choose_city()
+        elif state == 'notifications_choose_time':
+            mm = self.notifications_choose_time()
         else:
             mm = u'Return to initial menu {}'.format(emoji_return_arrow), self._create_initial()
             self._change_state('initial')

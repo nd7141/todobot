@@ -22,48 +22,11 @@ tasks_db = db.tasks_db
 text_db = db.text_db
 reminder_db = db.reminder_db
 
-
-# # a wrapper to send a message (used inside Timer)
-# def wrapper(chat_id, message):
-#     def send_reminder():
-#         print 'inside send_reminder'
-#         tb.send_message(chat_id, message)
-#     return send_reminder
-#
-#
-# # a function to release a Timer (used inside subscriber)
-# def create_timer(data):
-#     chat_id = int(data['chat_id'])
-#     time_at = float(data['time_at'])
-#     offset = time_at - time.time()
-#     if offset > 0:
-#         messages = ['Your tasks']
-#         count = 0
-#         for task in tasks_db.find({"chat_id": chat_id, "finished": False}).sort('created'):
-#             content = text_db.find_one({"message_id": task["message_id"]})
-#             if 'text' in content:
-#                 count += 1
-#                 messages.append(u"{}. {}".format(count, content['text']))
-#         message = '\n'.join(messages)
-#         func = wrapper(chat_id, message)
-#         Timer(offset, func).start()
-#         print 'Just released another timer'
-#     else:
-#         print 'The date is passed'
-#
-# print 'Start listening...'
-# while True:
-#     if reminder_db.count():
-#         for data in reminder_db.find():
-#             create_timer(data)
-#             reminder_db.remove(data)
-#     time.sleep(1)
-
-
+print 'Start listening...'
 while True:
     for data in reminder_db.find():
         time_at = float(data['time_at'])
-        if time_at > time.time():
+        if time_at < time.time():
             chat_id = int(data['chat_id'])
             # compose a message
             messages = ['Your tasks']
@@ -75,6 +38,7 @@ while True:
                     messages.append(u"{}. {}".format(count, content['text']))
             message = '\n'.join(messages)
 
+            print chat_id, message
             tb.send_message(chat_id, message)
 
             # set another reminder or remove reminder
