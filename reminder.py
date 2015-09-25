@@ -38,7 +38,7 @@ while True:
                     messages.append(u"{}. {}".format(count, content['text']))
             message = '\n'.join(messages)
 
-            print chat_id, message
+            print chat_id, time_at
             tb.send_message(chat_id, message)
 
             # set another reminder or remove reminder

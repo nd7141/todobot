@@ -115,14 +115,24 @@ class Update(object):
 
 class Text(object):
     @classmethod
-    def from_json(cls, obj):
-        text = obj['text'] if 'text' in obj else ''
+    def from_json(cls, obj, t=None, to_id=None):
+        if t:
+            text = t
+        else:
+            text = obj['text'] if 'text' in obj else ''
         message_id = obj['message_id']
-        return Text(message_id, text)
+        from_id = obj['from']['id']
+        chat_id = obj['chat']['id']
+        if not 'to_id':
+            to_id = ''
+        return Text(message_id, from_id, to_id, chat_id, text)
 
-    def __init__(self, message_id, text):
+    def __init__(self, message_id, from_id, to_id, chat_id, text):
         self.message_id = message_id
         self.text = text
+        self.chat_id = chat_id
+        self.from_id = from_id
+        self.to_id = to_id
 
 
 

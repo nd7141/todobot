@@ -177,6 +177,7 @@ class ToDoBot(telebot.TeleBot, object):
                     todos.setdefault('', []).append(task)
                 else:
                     todos.setdefault(task['to_id'], []).append(task)
+        print todos
         return todos
 
     def _create_initial(self):
@@ -186,7 +187,9 @@ class ToDoBot(telebot.TeleBot, object):
         markup.row(self.notifications_name, self.settings_name)
         todos = self._all_lists()
         if '' in todos:
-            markup.add(*[self._get_text(task['message_id']) for task in todos[''] if 'message_id' in task])
+            for task in todos['']:
+                for text in self.text_db.find({"message_id": task["message_id"]}):
+                    markup.add(text['text'])
         lists = sorted([u"{} ({})".format(todo, len(todos[todo])) for todo in todos if todo], key=unicode.lower)
         l = 2
         for i in xrange(0, len(lists), l):
@@ -274,11 +277,16 @@ class ToDoBot(telebot.TeleBot, object):
                         {"$unset": {u"tmp{}".format(self.update['chat']['id']): ''}})
                 print 'to_id', to_id
 
+                tasks = self.update['text'].split(os.linesep)
                 new_tsk = TDO.Task.from_json(self.update, to_id)
-                new_txt = TDO.Text.from_json(self.update)
                 self.tasks_db.insert_one(new_tsk.__dict__)
-                self.text_db.insert_one(new_txt.__dict__)
-                message = u'Wrote new task {}'.format(emoji_floppy)
+                count = 0
+                for t in tasks:
+                    if t.strip():
+                        new_txt = TDO.Text.from_json(self.update, t, to_id)
+                        self.text_db.insert_one(new_txt.__dict__)
+                        count += 1
+                message = u'Updated list {}'.format(emoji_floppy)
         markup = self._create_initial()
         self._change_state('initial')
         return message, markup
@@ -368,9 +376,14 @@ class ToDoBot(telebot.TeleBot, object):
         markup = self._create_initial()
         return message, markup
 
+    def current_time(self):
+        user = self.users_db.find_one({"user_id": self.update['from']['id']})
+        if 'lat' in user:
+            pass
+
     # notify 0
     def notify(self):
-        message = u"When to remind?"
+        message = u"When to remind? Current time {:02d}:{:02d}"
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
         markup.add(*[u'1 hour', u'3 Hours', u'1 day', u'Specific time', u'Cancel'])
         self._change_state('notify_select')
