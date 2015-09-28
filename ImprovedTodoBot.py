@@ -115,16 +115,16 @@ class ToDoBot(telebot.TeleBot, object):
 
     def listener(self, *messages):
         for msg in messages:
-            print u"{0}: {1}".format(msg['from']['first_name'], msg['text']) if 'text' in msg else ''
             update = TDO.Update(msg)
             self.set_update(update)
             result, markup = self.execute()
-            print 'Result', result
+            print 'Result:', result
             try:
-                print 'Keyboard', markup.keyboard
+                print 'Keyboard:', markup.keyboard
             except AttributeError:
-                print 'Keyboard', None
+                print 'Keyboard:', None
             if result:
+                print
                 self.send_message(msg['chat']['id'], result, reply_markup=markup, reply_to_message_id=msg['message_id'])
 
     def set_update_listener(self):
@@ -166,7 +166,6 @@ class ToDoBot(telebot.TeleBot, object):
             record = self.text_db.find_one({"message_id": message_id})
         except KeyError:
             record = {'text': ""}
-        print 'record', record
         return record['text']
 
     def _all_lists(self):
@@ -177,7 +176,6 @@ class ToDoBot(telebot.TeleBot, object):
                     todos.setdefault('', []).append(task)
                 else:
                     todos.setdefault(task['to_id'], []).append(task)
-        print todos
         return todos
 
     def _create_initial(self):
@@ -231,10 +229,8 @@ class ToDoBot(telebot.TeleBot, object):
             message = u'How do you call this list?'
             self._change_state('todo_write_list')
         else:
-            print self.update['text']
             idx = self.update['text'].find('.')
             lst = self.update['text'][idx+2:]
-            print 'lst', lst
             if idx > 0 and lst in todos:
                 message = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
@@ -275,7 +271,6 @@ class ToDoBot(telebot.TeleBot, object):
                     to_id = user[u"tmp{}".format(self.update['chat']['id'])]
                     self.users_db.update({"user_id": self.update['from']['id']},
                         {"$unset": {u"tmp{}".format(self.update['chat']['id']): ''}})
-                print 'to_id', to_id
 
                 tasks = self.update['text'].split(os.linesep)
                 new_tsk = TDO.Task.from_json(self.update, to_id)
@@ -358,11 +353,18 @@ class ToDoBot(telebot.TeleBot, object):
         text = self.update['text']
         if text.startswith('Current'):
             todos = self._all_lists()
-            message = '\n'.join([self._get_text(t['message_id']) for t in todos[''] if 'message_id' in t])
+            texts = []
+            for task in todos['']:
+                for text in self.text_db.find({"message_id": task["message_id"]}):
+                    texts.append(text['text'])
+            message = '\n'.join(texts)
         elif text.startswith('Finished'):
             cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
-            message = '\n'.join([u'{} ({})'.format(self._get_text(task['message_id']), TDO.Update.strtime(task['end']))
-                                  for task in cursor if 'message_id' in task])
+            texts = []
+            for task in cursor:
+                for text in self.text_db.find({"message_id": task["message_id"]}):
+                    texts.append((text['text'], TDO.Update.strtime(task['end'])))
+            message = u"\n".join([u"{} ({})".format(t, e) for (t,e) in texts])
         elif text.startswith('Cancel'):
             message = u'Choose action'
         else:
@@ -604,7 +606,11 @@ class ToDoBot(telebot.TeleBot, object):
     def execute(self):
         mm = None, None
 
-        print 'chat id', self.update['chat']['id']
+        print 'User:', self.update['from']['first_name'], self.update['from']['id']
+        if 'text' in self.update:
+            print 'Text:', self.update['text']
+        print 'Chat id:', self.update['chat']['id']
+
 
         # Write new user, group into database
         user = self.write_user()
@@ -613,8 +619,7 @@ class ToDoBot(telebot.TeleBot, object):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
         state = user.get('state{}'.format(self.update['chat']['id']), 'initial')
 
-        print
-        print 'Started with state', state
+        print 'State:', state
 
         if 'text' not in self.update:
             return mm

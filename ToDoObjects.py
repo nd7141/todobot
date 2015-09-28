@@ -111,7 +111,7 @@ class Update(object):
 
     @staticmethod
     def strtime(unix):
-        return datetime.datetime.utcfromtimestamp(int(unix)).strftime('%d %B %Y %H:%M:%S')
+        return datetime.datetime.utcfromtimestamp(int(unix)).strftime('%d %b %Y %H:%M')
 
 class Text(object):
     @classmethod

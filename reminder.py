@@ -31,11 +31,11 @@ while True:
             # compose a message
             messages = ['Your tasks']
             count = 0
+            texts = []
             for task in tasks_db.find({"chat_id": chat_id, "finished": False}).sort('created'):
-                content = text_db.find_one({"message_id": task["message_id"]})
-                if 'text' in content:
+                for text in text_db.find({"message_id": task["message_id"]}):
                     count += 1
-                    messages.append(u"{}. {}".format(count, content['text']))
+                    messages.append(u"{}. {}".format(count, text['text']))
             message = '\n'.join(messages)
 
             print chat_id, time_at
@@ -43,7 +43,7 @@ while True:
 
             # set another reminder or remove reminder
             if data.get('repetitive', False):
-                reminder_db.update(data, {"$set": {'time_at': time_at + 30}})
+                reminder_db.update(data, {"$set": {'time_at': time_at + 86400}})
             else:
                 reminder_db.remove(data)
     time.sleep(1)
