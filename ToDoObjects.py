@@ -72,7 +72,7 @@ class Group(Jsonish):
         self.created = created
         self.participants = [participant]
 
-class Task(Jsonish):
+class PublicTask(Jsonish):
     @classmethod
     def from_json(cls, json_string, to_id=None):
         obj = cls.check_json(json_string)
@@ -82,7 +82,7 @@ class Task(Jsonish):
         created = obj['date']
         if not to_id:
             to_id = ''
-        return Task(message_id, chat_id, from_id, created, to_id)
+        return PublicTask(message_id, chat_id, from_id, created, to_id)
 
     def __init__(self, message_id, chat_id, from_id, created, to_id):
         self.message_id = message_id
@@ -93,8 +93,34 @@ class Task(Jsonish):
         self.finished = False
         self.to_id = to_id
 
-    def finish(self):
-        self.finished = True
+class Task(Jsonish):
+
+    @classmethod
+    def from_json(cls, json_string, t='', to_id=None):
+        obj = cls.check_json(json_string)
+        message_id = obj['message_id']
+        chat_id = obj['chat']['id']
+        from_id = obj['from']['id']
+        created = obj['date']
+        if t:
+            text = t
+        else:
+            text = obj['text']
+        if not to_id:
+            to_id = ''
+        return Task(message_id, chat_id, from_id, created, to_id, text)
+
+    def __init__(self, message_id, chat_id, from_id, created, to_id, text):
+        self.message_id = message_id
+        self.chat_id = chat_id
+        self.from_id = from_id
+        self.created = created
+        self.end = None
+        self.finished = False
+        self.to_id = to_id
+        self.text = text
+
+
 
 class Update(object):
     def __init__(self, update):

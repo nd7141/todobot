@@ -34,12 +34,12 @@ def parse_date(s):
 
 class ToDoBot(telebot.TeleBot, object):
 
-    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, text_db, reminder_db, geopy_user, botan_token):
+    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, public_tasks_db, reminder_db, geopy_user, botan_token):
         super(self.__class__, self).__init__(token)
         self.users_db = users_db
         self.groups_db = groups_db
         self.tasks_db = tasks_db
-        self.text_db = text_db
+        self.public_tasks_db = public_tasks_db
         self.reminder_db = reminder_db
         self.owm = pyowm.OWM(owm_token)
         self.geopy_user = geopy_user
@@ -161,17 +161,10 @@ class ToDoBot(telebot.TeleBot, object):
         self.users_db.update({"user_id": self.update['from']['id']},
                              {"$set": {'state{}'.format(self.update['chat']['id']): state}})
 
-    def _get_text(self, message_id):
-        try:
-            record = self.text_db.find_one({"message_id": message_id})
-        except KeyError:
-            record = {'text': ""}
-        return record['text']
-
     def _all_lists(self):
         todos = dict()
         for task in self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": False}).sort('created'):
-            if 'message_id' in task:
+            if 'message_id' in task and 'text' in task:
                 if task['to_id'] == '':
                     todos.setdefault('', []).append(task)
                 else:
@@ -184,10 +177,7 @@ class ToDoBot(telebot.TeleBot, object):
         markup.row(self.notify_name, self.support_name)
         markup.row(self.notifications_name, self.settings_name)
         todos = self._all_lists()
-        if '' in todos:
-            for task in todos['']:
-                for text in self.text_db.find({"message_id": task["message_id"]}):
-                    markup.add(text['text'])
+        markup.add(*[task['text'] for task in todos.get('', []) if 'text' in task])
         lists = sorted([u"{} ({})".format(todo, len(todos[todo])) for todo in todos if todo], key=unicode.lower)
         l = 2
         for i in xrange(0, len(lists), l):
@@ -273,14 +263,13 @@ class ToDoBot(telebot.TeleBot, object):
                         {"$unset": {u"tmp{}".format(self.update['chat']['id']): ''}})
 
                 tasks = self.update['text'].split(os.linesep)
-                new_tsk = TDO.Task.from_json(self.update, to_id)
-                self.tasks_db.insert_one(new_tsk.__dict__)
-                count = 0
                 for t in tasks:
                     if t.strip():
-                        new_txt = TDO.Text.from_json(self.update, t, to_id)
-                        self.text_db.insert_one(new_txt.__dict__)
-                        count += 1
+                        public_task = TDO.PublicTask.from_json(self.update, to_id)
+                        self.public_tasks_db.insert_one(public_task.__dict__)
+                        task = TDO.Task.from_json(self.update, t, to_id)
+                        self.tasks_db.insert_one(task.__dict__)
+
                 message = u'Updated list {}'.format(emoji_floppy)
         markup = self._create_initial()
         self._change_state('initial')
@@ -298,19 +287,18 @@ class ToDoBot(telebot.TeleBot, object):
         todos = self._all_lists()
         tasks = todos[lst]
         for task in tasks:
-            if self._get_text(task['message_id']) == text:
+            if task['text'] == text:
                 self.tasks_db.update({"_id": task["_id"]},
                     {"$set": {"finished": True, "end": time.time()}})
+                self.public_tasks_db.update({"message_id": task["message_id"]},
+                    {"$set": {"finished": True, "end": time.time()}})
                 message = u'Finished "{}" {}'.format(self.update['text'], emoji_star)
-                break
-        else:
-            message = u'No task'
-        markup = self._create_initial()
-        return message, markup
+                markup = self._create_initial()
+                return message, markup
 
     def remove_from_list(self, lst):
         todos = self._all_lists()
-        tasks = [self._get_text(task['message_id']) for task in todos[lst] if 'message_id' in task]
+        tasks = [task['text'] for task in todos[lst] if 'text' in task]
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
         markup.add(*tasks)
         markup.add(u'Cancel')
@@ -326,16 +314,18 @@ class ToDoBot(telebot.TeleBot, object):
         else:
             todos = self._all_lists()
             user = self.users_db.find_one({"user_id": self.update['from']['id']})
-            lst = user.get(u"tmp2{}".format(self.update['chat']['id']), 'NONE')
+            lst = user.get(u"tmp2{}".format(self.update['chat']['id']), '')
             tasks = todos[lst]
+            message = ''
             for task in tasks:
-                if 'message_id' in task and self._get_text(task['message_id']) == self.update['text']:
+                if task['text'] == self.update['text']:
                     self.tasks_db.update({"_id": task["_id"]},
                         {"$set": {"finished": True, "end": time.time()}})
+                    self.public_tasks_db.update({"message_id": task["message_id"]},
+                        {"$set": {"finished": True, "end": time.time()}})
                     message = u'Finished "{}" {}'.format(self.update['text'], emoji_star)
-                    break
-            else:
-                message= u'No such task'
+            if not message:
+                message = u'No such task'
 
         self._change_state('initial')
         markup = self._create_initial()
@@ -353,17 +343,11 @@ class ToDoBot(telebot.TeleBot, object):
         text = self.update['text']
         if text.startswith('Current'):
             todos = self._all_lists()
-            texts = []
-            for task in todos['']:
-                for text in self.text_db.find({"message_id": task["message_id"]}):
-                    texts.append(text['text'])
+            texts = [task['text'] for task in todos[''] if 'text' in task]
             message = '\n'.join(texts)
         elif text.startswith('Finished'):
             cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
-            texts = []
-            for task in cursor:
-                for text in self.text_db.find({"message_id": task["message_id"]}):
-                    texts.append((text['text'], TDO.Update.strtime(task['end'])))
+            texts = [(task['text'], task['end']) for task in cursor if 'text' in task and 'end' in task]
             message = u"\n".join([u"{} ({})".format(t, e) for (t,e) in texts])
         elif text.startswith('Cancel'):
             message = u'Choose action'
@@ -647,7 +631,7 @@ class ToDoBot(telebot.TeleBot, object):
                 todos = self._all_lists()
                 texts = []
                 if '' in todos:
-                    texts = [self._get_text(task['message_id']) for task in todos[''] if 'message_id' in task]
+                    texts = [task['text'] for task in todos[''] if 'text' in task]
                 idx = s.find('(')
                 if s in texts:
                     mm = self.remove(s, '')

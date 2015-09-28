@@ -49,16 +49,14 @@ if __name__ == "__main__":
     tasks_db = db['tasks_db']
     text_db = db['text_db']
     reminder_db = db['reminder_db']
-    # reminder_db = Publisher(db, 'reminder_db')
-    # test_users = db['test_users']
-    # test_groups = db['test_groups']
+    public_tasks_db = db.public
 
     token = get_token('token.txt')
     owm_token = get_token('owm_token.txt')
     geopy_user = get_token('geopy_username.txt')
     botan_token = int(get_token('botan_token.txt'))
 
-    td_bot = ITDB.ToDoBot(token, owm_token, users_db, groups_db, tasks_db, text_db, reminder_db, geopy_user, botan_token)
+    td_bot = ITDB.ToDoBot(token, owm_token, users_db, groups_db, tasks_db, public_tasks_db, reminder_db, geopy_user, botan_token)
     td_bot.set_update_listener()
     td_bot.polling()
 
