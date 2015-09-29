@@ -118,15 +118,17 @@ class ToDoBot(telebot.TeleBot, object):
         for msg in messages:
             update = TDO.Update(msg)
             self.set_update(update)
-            result, markup = self.execute()
-            print 'Result:', result
+            kwargs = self.execute()
+            print kwargs
+            print 'Text:', kwargs['text']
             try:
-                print 'Keyboard:', markup.keyboard
+                print 'Keyboard:', kwargs['reply_markup'].keyboard
             except AttributeError:
                 print 'Keyboard:', None
-            if result:
+            if kwargs['text']:
                 print
-                self.send_message(msg['chat']['id'], result, reply_markup=markup, disable_web_page_preview=True, reply_to_message_id=msg['message_id'])
+                self.send_message(msg['chat']['id'], **kwargs)
+                # self.send_message(msg['chat']['id'], result, reply_markup=markup, disable_web_page_preview=True, reply_to_message_id=msg['message_id'])
 
     def set_update_listener(self):
         self.update_listener.append(self.listener)
@@ -192,13 +194,6 @@ class ToDoBot(telebot.TeleBot, object):
 
     # 0 menu
     def todo(self):
-        user = self.users_db.find_one({"user_id": self.update['from']['id']})
-        # if  float(user.get('expiry_date', 0)) < time.time(): # expired
-        #     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-        #     markup.add(u'Cancel')
-        #     message = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
-        #     self._change_state('todo_write')
-        # else:
         todos = self._all_lists()
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
         markup.add(u'Create a new Todo list {}'.format(emoji_open_folder))
@@ -211,7 +206,8 @@ class ToDoBot(telebot.TeleBot, object):
         markup.add(u'Cancel')
         message = u'Write task to Default list {} or Create a new one {}'.format(emoji_pencil, emoji_open_folder)
         self._change_state('todo_create_list')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # 1 menu
     def todo_create_list(self):
@@ -242,9 +238,12 @@ class ToDoBot(telebot.TeleBot, object):
                 self.users_db.update({"user_id": self.update['from']['id']},
                     {"$set": {u"tmp{}".format(self.update['chat']['id']): lst}})
             else:
-                message, markup = self.todo_write()
+                kw = self.todo_write()
+                message = kw['text']
+                markup = kw['reply_markup']
                 self._change_state('initial')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup, "disable_web_page_preview": True}
+        return kwargs
 
     # 2 menu
     def todo_write_list(self):
@@ -258,7 +257,8 @@ class ToDoBot(telebot.TeleBot, object):
             self.users_db.update({"user_id": self.update['from']['id']},
                 {"$set": {u"tmp{}".format(self.update['chat']['id']): self.update['text']}})
             self._change_state('todo_write')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # 3 menu
     def todo_write(self):
@@ -286,7 +286,8 @@ class ToDoBot(telebot.TeleBot, object):
                 message = u'Updated list {}'.format(emoji_floppy)
         markup = self._create_initial()
         self._change_state('initial')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     def todo_choose_list(self):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
@@ -294,7 +295,8 @@ class ToDoBot(telebot.TeleBot, object):
             return self.todo()
         message = u'Not implemented'
         markup = self._create_initial()
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     def remove(self, text, lst):
         todos = self._all_lists()
@@ -307,7 +309,8 @@ class ToDoBot(telebot.TeleBot, object):
                     {"$set": {"finished": True, "end": time.time()}})
                 message = u'Finished "{}" {}'.format(self.update['text'], emoji_star)
                 markup = self._create_initial()
-                return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     def remove_from_list(self, lst):
         todos = self._all_lists()
@@ -319,7 +322,8 @@ class ToDoBot(telebot.TeleBot, object):
         self._change_state('remove_list_task')
         self.users_db.update({"user_id": self.update['from']['id']},
                              {"$set": {u"tmp2{}".format(self.update['chat']['id']): lst}})
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     def remove_list_task(self):
         if self.update['text'] == u'Cancel':
@@ -342,7 +346,8 @@ class ToDoBot(telebot.TeleBot, object):
 
         self._change_state('initial')
         markup = self._create_initial()
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
 
     def addons(self):
@@ -350,7 +355,8 @@ class ToDoBot(telebot.TeleBot, object):
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
         markup.add(u'Current {}'.format(emoji_clipboard), u'Finished {}'.format(emoji_square), u'Cancel {}'.format(emoji_return_arrow))
         self._change_state('addons_choose')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     def addons_choose(self):
         text = self.update['text']
@@ -368,12 +374,14 @@ class ToDoBot(telebot.TeleBot, object):
             message = u'Unrecognized add-on.\n'
         markup = self._create_initial()
         self._change_state('initial')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     def support(self):
         message = u'You can email us at support@thetodobot.com\n or chat with us at thetodobot.com {}'.format(emoji_wink)
         markup = self._create_initial()
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     def current_time(self):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
@@ -386,7 +394,8 @@ class ToDoBot(telebot.TeleBot, object):
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
         markup.add(*[u'1 hour', u'3 Hours', u'1 day', u'Specific time', u'Cancel'])
         self._change_state('notify_select')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # notify 1
     def notify_select(self):
@@ -417,7 +426,8 @@ class ToDoBot(telebot.TeleBot, object):
             else:
                 message, markup = self.notify_write_time()
 
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # notify 2
     def notify_choose_city(self):
@@ -442,7 +452,8 @@ class ToDoBot(telebot.TeleBot, object):
                     message = u'Please, type your city again.'
                     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                     markup.add(u'Cancel')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # notify 3
     def notify_write_time(self):
@@ -451,7 +462,8 @@ class ToDoBot(telebot.TeleBot, object):
         markup.add(u'Cancel')
         self._change_state('notify_get_time')
 
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # notify 4
     def notify_get_time(self):
@@ -479,7 +491,8 @@ class ToDoBot(telebot.TeleBot, object):
                 message = u'The date is not correct.\n Example: Saturday 7:00\n 12 Aug 12:30'
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                 markup.add(u'Cancel')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # notifications 0
     def notifications(self):
@@ -494,7 +507,8 @@ class ToDoBot(telebot.TeleBot, object):
             markup = telebot.types.ReplyKeyboardMarkup(selective=True, resize_keyboard=True, row_width=1)
             markup.add(u'Turn off', u'Cancel')
             self._change_state('notifications_choose_time')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # notifications 1
     def notifications_choose_city(self):
@@ -517,7 +531,8 @@ class ToDoBot(telebot.TeleBot, object):
                 message = u"Do not know this city. Type again."
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                 markup.add(u'Cancel')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # notifications 2
     def notifications_choose_time(self):
@@ -551,7 +566,8 @@ class ToDoBot(telebot.TeleBot, object):
                 message = u'The date is not correct.\n Example: Saturday 7:00\n 12 Aug 12:30'
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                 markup.add(u'Cancel')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # settings 0
     def settings(self):
@@ -559,7 +575,8 @@ class ToDoBot(telebot.TeleBot, object):
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True, row_width=1)
         markup.add(u'City {}'.format(emoji_globe), u'Cancel')
         self._change_state('settings_select')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # settings 1
     def settings_select(self):
@@ -577,7 +594,8 @@ class ToDoBot(telebot.TeleBot, object):
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
             markup.add(u'Cancel')
             self._change_state('settings_choose_city')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     # settings 2
     def settings_choose_city(self):
@@ -598,10 +616,17 @@ class ToDoBot(telebot.TeleBot, object):
                 message = u"Do not know this city. Type again."
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                 markup.add(u'Cancel')
-        return message, markup
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
+
+    def cancel_all(self):
+        message  = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
+        markup = self._create_initial()
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
 
     def execute(self):
-        mm = None, None
+        kwargs = {"text": None, "reply_markup": None}
 
         print 'User:', self.update['from']['first_name'], self.update['from']['id']
         if 'text' in self.update:
@@ -619,26 +644,24 @@ class ToDoBot(telebot.TeleBot, object):
         print 'State:', state
 
         if 'text' not in self.update:
-            return mm
+            return kwargs
 
         if state == 'initial':
             text= self.update['text'].strip()
             if text == 'Cancel':
-                message  = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
-                markup = self._create_initial()
-                return message, markup
+                kwargs = self.cancel_all()
             if text == self.todo_name:
-                mm = self.todo()
+                kwargs = self.todo()
             elif text == self.addons_name:
-                mm = self.addons()
+                kwargs = self.addons()
             elif text == self.support_name:
-                mm = self.support()
+                kwargs = self.support()
             elif text == self.notify_name:
-                mm = self.notify()
+                kwargs = self.notify()
             elif text == self.settings_name:
-                mm = self.settings()
+                kwargs = self.settings()
             elif text == self.notifications_name:
-                mm = self.notifications()
+                kwargs = self.notifications()
             else:
                 s = self.update['text']
                 todos = self._all_lists()
@@ -647,37 +670,37 @@ class ToDoBot(telebot.TeleBot, object):
                     texts = [task['text'] for task in todos[''] if 'text' in task]
                 idx = s.find('(')
                 if s in texts:
-                    mm = self.remove(s, '')
+                    kwargs = self.remove(s, '')
                 elif s[:idx-1] in todos:
-                    mm = self.remove_from_list(s[:idx-1])
+                    kwargs = self.remove_from_list(s[:idx-1])
         elif state == 'todo_write':
-            mm = self.todo_write()
+            kwargs = self.todo_write()
         elif state == 'todo_create_list':
-            mm = self.todo_create_list()
+            kwargs = self.todo_create_list()
         elif state == 'todo_write_list':
-            mm = self.todo_write_list()
+            kwargs = self.todo_write_list()
         elif state == 'addons_choose':
-            mm = self.addons_choose()
+            kwargs = self.addons_choose()
         elif state == 'todo_choose_list':
-            mm = self.todo_choose_list()
+            kwargs = self.todo_choose_list()
         elif state == 'remove_list_task':
-            mm = self.remove_list_task()
+            kwargs = self.remove_list_task()
         elif state == 'notify_select':
-            mm = self.notify_select()
+            kwargs = self.notify_select()
         elif state == 'notify_choose_city':
-            mm = self.notify_choose_city()
+            kwargs = self.notify_choose_city()
         elif state == 'notify_get_time':
-            mm = self.notify_get_time()
+            kwargs = self.notify_get_time()
         elif state == 'settings_select':
-            mm = self.settings_select()
+            kwargs = self.settings_select()
         elif state == 'settings_choose_city':
-            mm = self.settings_choose_city()
+            kwargs = self.settings_choose_city()
         elif state == 'notifications_choose_city':
-            mm = self.notifications_choose_city()
+            kwargs = self.notifications_choose_city()
         elif state == 'notifications_choose_time':
-            mm = self.notifications_choose_time()
+            kwargs = self.notifications_choose_time()
         else:
-            mm = u'Return to initial menu {}'.format(emoji_return_arrow), self._create_initial()
+            kwargs = u'Return to initial menu {}'.format(emoji_return_arrow), self._create_initial()
             self._change_state('initial')
 
-        return mm
+        return kwargs
