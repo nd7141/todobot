@@ -17,7 +17,8 @@ import re
 from geopy import geocoders
 from dateutil.parser import parse
 import datetime
-
+from string import ascii_letters, digits
+import random
 
 def find_in_list(lst, el):
     try:
@@ -125,7 +126,7 @@ class ToDoBot(telebot.TeleBot, object):
                 print 'Keyboard:', None
             if result:
                 print
-                self.send_message(msg['chat']['id'], result, reply_markup=markup, reply_to_message_id=msg['message_id'])
+                self.send_message(msg['chat']['id'], result, reply_markup=markup, disable_web_page_preview=True, reply_to_message_id=msg['message_id'])
 
     def set_update_listener(self):
         self.update_listener.append(self.listener)
@@ -184,26 +185,32 @@ class ToDoBot(telebot.TeleBot, object):
             markup.row(*lists[i:i+l])
         return markup
 
+    def _generate_link(self):
+        r = ''.join(random.sample(ascii_letters + digits, 8))
+        link = u'thetodobot.com/?q={}'.format(r)
+        return link
+
     # 0 menu
     def todo(self):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
-        if  float(user.get('expiry_date', 0)) < time.time(): # expired
-            self._change_state('todo_write')
-            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-            markup.add(u'Cancel')
-            message = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
-        else:
-            todos = self._all_lists()
-            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-            markup.add(u'Create a new Todo list {}'.format(emoji_open_folder))
-            i = 0
-            for todo in todos:
-                if todo:
-                    i+= 1
-                    markup.add(u"{}. {}".format(i, todo))
-            markup.add(u'Cancel')
-            message = u'Write task to Default list {} or Create a new one {}'.format(emoji_pencil, emoji_open_folder)
-            self._change_state('todo_create_list')
+        # if  float(user.get('expiry_date', 0)) < time.time(): # expired
+        #     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+        #     markup.add(u'Cancel')
+        #     message = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
+        #     self._change_state('todo_write')
+        # else:
+        todos = self._all_lists()
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+        markup.add(u'Create a new Todo list {}'.format(emoji_open_folder))
+        i = 0
+        # add lists as buttons
+        for todo in todos:
+            if todo:
+                i+= 1
+                markup.add(u"{}. {}".format(i, todo))
+        markup.add(u'Cancel')
+        message = u'Write task to Default list {} or Create a new one {}'.format(emoji_pencil, emoji_open_folder)
+        self._change_state('todo_create_list')
         return message, markup
 
     # 1 menu
@@ -214,10 +221,16 @@ class ToDoBot(telebot.TeleBot, object):
             message = u'Done {}'.format(emoji_boxcheck)
             self._change_state('initial')
         elif self.update['text'].startswith(u'Create a new Todo list'):
-            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-            markup.add(u'Cancel')
-            message = u'How do you call this list?'
-            self._change_state('todo_write_list')
+            user = self.users_db.find_one({"user_id": self.update['from']['id']})
+            if float(user.get('expiry_date', 0)) < time.time(): # expired:
+                message = u'Create a new list with a Premium subscription at {}'.format(self._generate_link())
+                markup = self._create_initial()
+                self._change_state('initial')
+            else:
+                message = u'How do you call this list?'
+                markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                markup.add(u'Cancel')
+                self._change_state('todo_write_list')
         else:
             idx = self.update['text'].find('.')
             lst = self.update['text'][idx+2:]
