@@ -19,6 +19,8 @@ from dateutil.parser import parse
 import datetime
 from string import ascii_letters, digits
 import random
+import base64
+import os
 
 def find_in_list(lst, el):
     try:
@@ -55,6 +57,9 @@ class ToDoBot(telebot.TeleBot, object):
         self.notify_name = u'Remind me {}'.format(emoji_hourglass)
         self.settings_name = u'Settings {}'.format(emoji_wrench)
         self.notifications_name = u'Notifications {}'.format(emoji_alarm)
+
+        self.commands_name = [self.todo_name, self.addons_name, self.notifications_name, self.notify_name, self.settings_name,
+                         self.support_name]
 
         self.googlegeo = geocoders.GoogleV3()
 
@@ -119,7 +124,6 @@ class ToDoBot(telebot.TeleBot, object):
             update = TDO.Update(msg)
             self.set_update(update)
             kwargs = self.execute()
-            print kwargs
             print 'Text:', kwargs['text']
             try:
                 print 'Keyboard:', kwargs['reply_markup'].keyboard
@@ -127,7 +131,7 @@ class ToDoBot(telebot.TeleBot, object):
                 print 'Keyboard:', None
             if kwargs['text']:
                 print
-                self.send_message(msg['chat']['id'], **kwargs)
+                self.send_message(msg['chat']['id'], reply_to_message_id=msg['message_id'], **kwargs)
                 # self.send_message(msg['chat']['id'], result, reply_markup=markup, disable_web_page_preview=True, reply_to_message_id=msg['message_id'])
 
     def set_update_listener(self):
@@ -188,8 +192,9 @@ class ToDoBot(telebot.TeleBot, object):
         return markup
 
     def _generate_link(self):
-        r = ''.join(random.sample(ascii_letters + digits, 8))
-        link = u'thetodobot.com/?q={}'.format(r)
+        r = base64.b64encode(os.urandom(6), "-_")
+        # r = ''.join(random.sample(ascii_letters + digits, 8))
+        link = u'thetodobot.com/{}'.format(r)
         return link
 
     # 0 menu
@@ -265,7 +270,7 @@ class ToDoBot(telebot.TeleBot, object):
         if self.update['text'].strip() == u'Cancel':
             message = u"Cancelled writing"
         else:
-            if self.update['text'] in [self.todo_name, self.addons_name]:
+            if self.update['text'] in self.commands_name:
                 message = u'Cannot write task: {}'.format(self.update['text'])
             else:
                 user = self.users_db.find_one({"user_id": self.update['from']['id']})
@@ -390,7 +395,7 @@ class ToDoBot(telebot.TeleBot, object):
 
     # notify 0
     def notify(self):
-        message = u"When to remind? Current time {:02d}:{:02d}"
+        message = u"When to remind?"
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
         markup.add(*[u'1 hour', u'3 Hours', u'1 day', u'Specific time', u'Cancel'])
         self._change_state('notify_select')
@@ -494,6 +499,9 @@ class ToDoBot(telebot.TeleBot, object):
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
 
+    def _to_hours(self, time):
+        return datetime.datetime.fromtimestamp(int(time)).strftime('%H:%M')
+
     # notifications 0
     def notifications(self):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
@@ -505,7 +513,9 @@ class ToDoBot(telebot.TeleBot, object):
         else:
             message = u'We will send you an update daily. What time do you want?\nExample: 7:00'
             markup = telebot.types.ReplyKeyboardMarkup(selective=True, resize_keyboard=True, row_width=1)
-            markup.add(u'Turn off', u'Cancel')
+            for reminder in self.reminder_db.find({"chat_id": self.update['chat']['id']}):
+                markup.add(self._to_hours(reminder['time_at']))
+            markup.add(u'Cancel')
             self._change_state('notifications_choose_time')
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
@@ -540,28 +550,36 @@ class ToDoBot(telebot.TeleBot, object):
             message = u'Done {}'.format(emoji_boxcheck)
             markup = self._create_initial()
             self._change_state('initial')
-        elif self.update['text'] == u'Turn off':
-            self.reminder_db.remove({"chat_id": int(self.update['chat']['id']), "repetitive": True})
-            message = u'No more notifications'
-            markup = self._create_initial()
-            self._change_state('initial')
+        # elif self.update['text'] == u'Turn off':
+        #     self.reminder_db.remove({"chat_id": int(self.update['chat']['id']), "repetitive": True})
+        #     message = u'No more notifications'
+        #     markup = self._create_initial()
+        #     self._change_state('initial')
         else:
             date = parse_date(self.update['text'])
             if date is not None:
-                user = self.users_db.find_one({"user_id": self.update['from']['id']})
-                tz = self.googlegeo.timezone((user['lat'], user['lng']))
-                date = date.replace(tzinfo=tz)
-                now = datetime.datetime.now().replace(tzinfo=tz)
-                if date < now:
-                    offset = float(now.replace(day=now.day+1, hour=date.hour, minute=date.minute, second=date.second).strftime("%s"))
+                for r in self.reminder_db.find({"chat_id": self.update['chat']['id']}):
+                    d = datetime.datetime.fromtimestamp(int(r['time_at']))
+                    if d.hour == date.hour and d.minute == date.minute:
+                        self.reminder_db.remove(r)
+                        message = u'Done {}'.format(emoji_boxcheck)
+                        markup = self._create_initial()
+                        self._change_state('initial')
+                        break
                 else:
-                    offset = float(now.replace(hour=date.hour, minute=date.minute, second=date.second).strftime("%s"))
+                    user = self.users_db.find_one({"user_id": self.update['from']['id']})
+                    # tz = self.googlegeo.timezone((user['lat'], user['lng']))
+                    # date = date.replace(tzinfo=tz)
+                    now = datetime.datetime.now().replace(hour=date.hour, minute=date.minute, second=date.second)
+                    if date < now:
+                        now += datetime.timedelta(days=1)
+                    offset = float(now.strftime("%s"))
 
-                self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
-                                             "time_at": offset, "repetitive": True})
-                message = u'Set a notification at {:02d}:{:02d} {}'.format(date.hour, date.minute, emoji_wink)
-                markup = self._create_initial()
-                self._change_state('initial')
+                    self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
+                                                 "time_at": offset, "repetitive": True})
+                    message = u'Set a notification at {:02d}:{:02d} {}'.format(date.hour, date.minute, emoji_wink)
+                    markup = self._create_initial()
+                    self._change_state('initial')
             else:
                 message = u'The date is not correct.\n Example: Saturday 7:00\n 12 Aug 12:30'
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
