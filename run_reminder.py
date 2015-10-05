@@ -9,6 +9,7 @@ import logging
 from ReminderTodoBot import Reminder
 import urllib
 import pyowm
+from emoji_chars import *
 
 # read token safely
 def get_token(filename):
@@ -41,7 +42,7 @@ def get_weather(place):
         return u'Temperature: N/A'
     if observation:
         w = observation.get_weather()
-        return u"Temperature: {} {}".format(w.get_temperature('celsius')['temp'], u"\u2103")
+        return u"{} {} {}".format(emoji_suncloud, w.get_temperature('celsius')['temp'], u"\u2103")
     else:
         return u'Temperature: N/A'
 
@@ -52,7 +53,8 @@ def get_tasks(chat_id):
     for task in tasks_db.find({"chat_id": chat_id, "finished": False}).sort('created'):
         if 'text' in task:
             count += 1
-            texts.append(u"{}. {}".format(count, task['text']))
+            number = u"".join([emoji_numbers[d] for d in map(int, list(str(count)))])
+            texts.append(u"{}. {}".format(number, task['text']))
     return texts
 
 
@@ -67,11 +69,12 @@ def messaging(data):
         lng = user.get('lng', 37.620393)
 
     # compose a message
-    messages = ['Pending tasks:']
+    messages = [u'{fire}'.format(fire=emoji_fire*3),
+                u"{} {}".format(emoji_fuji, datetime.date.today().strftime("%d %B, %A")), '']
     messages += get_tasks(chat_id)
-    messages.append(u"City: {}".format(city))
-    messages.append(get_weather(city))
-    messages.append(u"Traffic: {}".format(get_traffic(lat, lng)))
+    messages.extend([u'', u"{} {}".format(emoji_globe, city), get_weather(city),
+                     u"{} {}".format(emoji_car, get_traffic(lat, lng))])
+    messages.append(u'{fire}'.format(fire=emoji_fire*3))
     message = '\n'.join(messages)
 
     print chat_id, remind_at

@@ -38,6 +38,26 @@ emoji_city = u'\U0001F306'
 emoji_curved_down = u'\u2935'
 emoji_globe = u'\U0001F30D'
 emoji_hourglass = u'\u231B'
+emoji_fire = u'\U0001F525'
+emoji_sunface = u'\U0001F31E'
+emoji_thermometer = u"\U0001F321"
+emoji_calendar = u'\U0001F4C5'
+emoji_fuji = u'\U0001F5FB'
+emoji_car = u'\U0001F698'
+emoji_suncloud = u'\u26C5'
+
+emoji_numbers = {
+    1: u"\u0031\u20E3",
+    2: u"\u0032\u20E3",
+    3: u"\u0033\u20E3",
+    4: u"\u0034\u20E3",
+    5: u"\u0035\u20E3",
+    6: u"\u0036\u20E3",
+    7: u"\u0037\u20E3",
+    8: u"\u0038\u20E3",
+    9: u"\u0039\u20E3",
+    0: u"\u0030\u20E3",
+}
 
 if __name__ == "__main__":
     console = []
