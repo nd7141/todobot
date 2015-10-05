@@ -70,19 +70,22 @@ def messaging(data):
 
     # compose a message
     messages = [u'{fire}'.format(fire=emoji_fire*3),
-                u"{} {}".format(emoji_fuji, datetime.date.today().strftime("%d %B, %A")), '']
+                u"{} {}".format(emoji_fuji, datetime.date.today().strftime("%-d %B, %A")), '']
     messages += get_tasks(chat_id)
     messages.extend([u'', u"{} {}".format(emoji_globe, city), get_weather(city),
                      u"{} {}".format(emoji_car, get_traffic(lat, lng))])
     messages.append(u'{fire}'.format(fire=emoji_fire*3))
     message = '\n'.join(messages)
 
-    print chat_id, remind_at
-    tb.send_message(chat_id, message)
+    print u'Chat {} reminds at {}'.format(chat_id, datetime.datetime.fromtimestamp(remind_at).strftime("%-d %B %-H:%M"))
+    try:
+        tb.send_message(chat_id, message)
+    except:
+        print u'Failed to send message to {0}'.format(chat_id)
 
     # set another reminder or remove reminder
     if data.get('repetitive', False):
-        reminder_db.update(data, {"$set": {'remind_at': remind_at + 30}})
+        reminder_db.update(data, {"$set": {'remind_at': remind_at + 86400}})
     else:
         reminder_db.remove(data)
 

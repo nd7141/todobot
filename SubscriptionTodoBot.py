@@ -16,7 +16,7 @@ class Subscription(object):
         testdevgroup = -28297621
         yura_pekov = 1040729
         yura_oparin = 93518804
-        direction = -27571522
+        founding_group = -27571522
         self.cools = [me, testdevgroup]
         # self.cools = [me]
 
@@ -28,18 +28,24 @@ class Subscription(object):
             # send to founders that there was subscription
             for cool in self.cools:
                 print cool, u"User {} ({}) paid for subscription".format(user['first_name'], user['user_id'])
-                self.todobot.send_message(cool, u"User {} ({}) paid for subscription".format(user['first_name'], user['user_id']))
+                try:
+                    self.todobot.send_message(cool, u"User {} ({}) paid for subscription".format(user['first_name'], user['user_id']))
+                except:
+                    print u'Failed to send message to {0}'.format(cool)
             if i > 0:
-                self.todobot.send_message(self.cools[0],
-                                          u"More than one user has acquired subscription by the same code. {} ({})".format(user['first_name'],
-                                                                                                                           user['user_id']))
+                try:
+                    self.todobot.send_message(self.cools[0],
+                                              u"More than one user has acquired subscription by the same code. {} ({})".format(user['first_name'],
+                                                                                                                               user['user_id']))
+                except:
+                    print u'Failed to send message to {0} ({1})'.format(user['first_name'], user['user_id'])
+            print u"New subscription: {} ({})".format(user['first_name'], user['user_id'])
     def listen(self, pause=1):
         self.is_alive = True
         print 'Subscription starts listening...'
         while self.is_alive:
             try:
                 for data in self.subscription_db.find():
-                    print u'New subscription!'
                     self.extend_expire(data)
                     self.subscription_db.remove(data)
                 time.sleep(pause)
