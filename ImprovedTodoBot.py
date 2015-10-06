@@ -77,6 +77,11 @@ class ToDoBot(telebot.TeleBot, object):
         except Exception as e:
             print e
             print("TeleBot: Exception occurred.")
+            try:
+                if os.path.getsize('log.txt') > 10*1024*1024: # 10mb
+                    os.remove('log.txt')
+            except:
+                pass
             with open('log.txt', 'a+') as f:
                 f.write('''Exception in get_update at {0}.\n'''.format(time.strftime("%d-%m-%Y %H:%M:%S")))
                 f.write(traceback.format_exc() + '\n')
@@ -207,7 +212,7 @@ class ToDoBot(telebot.TeleBot, object):
         link_code = user.get("link_code", "")
         if not link_code:
             link_code = base64.b64encode(os.urandom(6), "-_")
-            payment_code = base64.b64encode(link_code)
+            payment_code = base64.b64encode(link_code).replace('=', '')
             self.users_db.update({"user_id": self.update['from']['id']},
                 {"$set": {"link_code": link_code, "payment_code": payment_code}})
         link = base_url.format(link_code)
@@ -672,7 +677,7 @@ class ToDoBot(telebot.TeleBot, object):
                           'sub_count': user.get('sub_count', 0) + 1}})
         # change link and payment code
         link_code = base64.b64encode(os.urandom(6), "-_")
-        payment_code = base64.b64encode(link_code)
+        payment_code = base64.b64encode(link_code).replace('=', '')
         self.users_db.update({"user_id": self.update['from']['id']},
             {"$set": {"link_code": link_code, "payment_code": payment_code}})
         # return message, markup
