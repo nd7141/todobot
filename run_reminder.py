@@ -2,14 +2,9 @@
 # date: 23 Sep 2015
 from __future__ import division
 import pymongo
-from threading import Timer
 from telebot import TeleBot
-import time, datetime
-import logging
 from ReminderTodoBot import Reminder
-import urllib
 import pyowm
-from emoji_chars import *
 
 # read token safely
 def get_token(filename):

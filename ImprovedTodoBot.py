@@ -61,6 +61,13 @@ class ToDoBot(telebot.TeleBot, object):
         self.commands_name = [self.todo_name, self.addons_name, self.notifications_name, self.notify_name, self.settings_name,
                          self.support_name]
 
+        me = 80639335
+        testdevgroup = -28297621
+        yura_pekov = 1040729
+        yura_oparin = 93518804
+        founding_group = -27571522
+        self.cools = [me, testdevgroup]
+
         self.googlegeo = geocoders.GoogleV3()
 
     def get_update(self):
@@ -123,15 +130,18 @@ class ToDoBot(telebot.TeleBot, object):
         for msg in messages:
             update = TDO.Update(msg)
             self.set_update(update)
-            kwargs = self.execute()
-            print 'Text:', kwargs['text']
-            try:
-                print 'Keyboard:', kwargs['reply_markup'].keyboard
-            except AttributeError:
-                print 'Keyboard:', None
-            print
-            if kwargs['text']:
-                self.send_message(msg['chat']['id'], reply_to_message_id=msg['message_id'], **kwargs)
+            new_messages = self.execute()
+            for kwargs in new_messages:
+                print 'Text:', kwargs['text']
+                try:
+                    print 'Keyboard:', kwargs['reply_markup'].keyboard
+                except (AttributeError, KeyError):
+                    print 'Keyboard:', None
+                print
+                if kwargs['text']:
+                    kwargs.setdefault('chat_id', msg['chat']['id'])
+                    kwargs.setdefault('reply_to_message_id', msg['message_id'])
+                    self.send_message(**kwargs)
 
     def set_update_listener(self):
         self.update_listener.append(self.listener)
@@ -194,12 +204,13 @@ class ToDoBot(telebot.TeleBot, object):
     def _generate_link(self):
         base_url = u'thetodobot.com/{}'
         user =  self.users_db.find_one({"user_id": self.update['from']['id']})
-        subscription_code = user.get("subscription_code", "")
-        if not subscription_code:
-            subscription_code = base64.b64encode(os.urandom(6), "-_")
+        link_code = user.get("link_code", "")
+        if not link_code:
+            link_code = base64.b64encode(os.urandom(6), "-_")
+            payment_code = base64.b64encode(link_code)
             self.users_db.update({"user_id": self.update['from']['id']},
-                {"$set": {"subscription_code": subscription_code}})
-        link = base_url.format(subscription_code)
+                {"$set": {"link_code": link_code, "payment_code": payment_code}})
+        link = base_url.format(link_code)
         return link
 
     # 0 menu
@@ -650,7 +661,41 @@ class ToDoBot(telebot.TeleBot, object):
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
 
+    def invalid_code(self):
+        message = u'Code is invalid'
+        return {"text": message}
+
+    def extend_expire(self, user):
+        # extend expiration and increment count of subscription
+        self.users_db.update({"user_id": user["user_id"]},
+                {"$set": {'expiry_date': time.time() + 86400*30,
+                          'sub_count': user.get('sub_count', 0) + 1}})
+        # change link and payment code
+        link_code = base64.b64encode(os.urandom(6), "-_")
+        payment_code = base64.b64encode(link_code)
+        self.users_db.update({"user_id": self.update['from']['id']},
+            {"$set": {"link_code": link_code, "payment_code": payment_code}})
+        # return message, markup
+        message = u"You received Premium subscription for 30 days! {}".format(emoji_thumb)
+        markup = self._create_initial()
+        self._change_state('initial')
+        kwargs = {"text": message, "reply_markup": markup}
+        messages = [kwargs]
+        for cool in self.cools:
+            messages.append({"chat_id": cool,
+                             "text": u"User {} ({}) paid for subscription".format(user['first_name'], user['user_id']),
+                             'reply_to_message_id': None})
+        return messages
+
+    def add_to_end(self, el, lst):
+        if isinstance(el, list):
+            lst.extend(el)
+        else:
+            lst.append(el)
+        return lst
+
     def execute(self):
+        new_messages = []
         kwargs = {"text": None, "reply_markup": None}
 
         if 'text' in self.update:
@@ -688,15 +733,23 @@ class ToDoBot(telebot.TeleBot, object):
                 kwargs = self.notifications()
             else:
                 s = self.update['text']
-                todos = self._all_lists()
-                texts = []
-                if '' in todos:
-                    texts = [task['text'] for task in todos[''] if 'text' in task]
-                idx = s.find('(')
-                if s in texts:
-                    kwargs = self.remove(s, '')
-                elif s[:idx-1] in todos:
-                    kwargs = self.remove_from_list(s[:idx-1])
+                if s.startswith('payment-'): # check payment code
+                    code = s[8:]
+                    user = self.users_db.find_one({"payment_code": code})
+                    if user:
+                        kwargs = self.extend_expire(user)
+                    else:
+                        kwargs = self.invalid_code()
+                else: # check if it's list
+                    todos = self._all_lists()
+                    texts = []
+                    if '' in todos: # default list
+                        texts = [task['text'] for task in todos[''] if 'text' in task]
+                    idx = s.find('(')
+                    if s in texts: # check if non-default list
+                        kwargs = self.remove(s, '')
+                    elif s[:idx-1] in todos:
+                        kwargs = self.remove_from_list(s[:idx-1])
         elif state == 'todo_write':
             kwargs = self.todo_write()
         elif state == 'todo_create_list':
@@ -727,4 +780,6 @@ class ToDoBot(telebot.TeleBot, object):
             kwargs = u'Return to initial menu {}'.format(emoji_return_arrow), self._create_initial()
             self._change_state('initial')
 
-        return kwargs
+        new_messages = self.add_to_end(kwargs, new_messages)
+
+        return new_messages

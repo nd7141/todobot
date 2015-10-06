@@ -40,6 +40,7 @@ class Subscription(object):
                 except:
                     print u'Failed to send message to {0} ({1})'.format(user['first_name'], user['user_id'])
             print u"New subscription: {} ({})".format(user['first_name'], user['user_id'])
+
     def listen(self, pause=1):
         self.is_alive = True
         print 'Subscription starts listening...'
