@@ -162,6 +162,11 @@ class ToDoBot(telebot.TeleBot, object):
         if not user:
             user_json = TDO.User.from_json(self.update['from'], self.update['date'])
             self.users_db.insert_one(user_json.__dict__)
+            now = datetime.datetime.now() + datetime.timedelta(days=1)
+            offset = float(now.strftime("%s"))
+            self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
+                                       "remind_at": offset, "repetitive": True,
+                                       "from_id": self.update['from']['id']})
             return self.users_db.find_one({"user_id": self.update["from"]["id"]})
         return user
 
@@ -536,6 +541,8 @@ class ToDoBot(telebot.TeleBot, object):
         if 'lat' not in user:
             message = u"Let's first set up your city."
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+            for reminder in self.reminder_db.find({"chat_id": self.update['chat']['id']}):
+                markup.add(self._to_hours(reminder['remind_at']))
             markup.add(u'Cancel')
             self._change_state('notifications_choose_city')
         else:

@@ -50,11 +50,11 @@ class Reminder(object):
     def send_reminder(self, data):
         remind_at = float(data['remind_at'])
         chat_id = int(data['chat_id'])
-        city = ''
+        city = 'Moscow'
         user = self.users_db.find_one({"user_id": data.get('from_id', '')})
         if user:
-            city = user.get('city', '')
-            lat = user.get('lat', 55.75396) # Moscow by default
+            city = user.get('city', 'Moscow') # Moscow by default
+            lat = user.get('lat', 55.75396)
             lng = user.get('lng', 37.620393)
 
         # compose a message
