@@ -379,25 +379,27 @@ class ToDoBot(telebot.TeleBot, object):
     def addons(self):
         message = u'Choose add-on {}'.format(emoji_bomb)
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
-        markup.add(u'Current {}'.format(emoji_clipboard), u'Finished {}'.format(emoji_square), u'Cancel {}'.format(emoji_return_arrow))
+        markup.add(u'All tasks', u'Finished tasks', u'Cancel')
         self._change_state('addons_choose')
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
 
     def addons_choose(self):
-        text = self.update['text']
-        if text.startswith('Current'):
+        if self.update['text'] == u'Cancel':
+            message = u'Done {}'.format(emoji_boxcheck)
+        elif self.update['text'] == u'All tasks':
             todos = self._all_lists()
-            texts = [task['text'] for task in todos[''] if 'text' in task]
-            message = '\n'.join(texts)
-        elif text.startswith('Finished'):
+            premessage = u'All tasks:\n'
+            texts = [task['text'] for lst in todos for task in todos[lst] if 'text' in task]
+            message = premessage + u'\n'.join(texts)
+        elif self.update['text'] == u'Finished tasks':
             cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
             texts = [(task['text'], task['end']) for task in cursor if 'text' in task and 'end' in task]
-            message = u"\n".join([u"{} ({})".format(t, e) for (t,e) in texts])
-        elif text.startswith('Cancel'):
-            message = u'Choose action'
+            premessage = u'Finished tasks:\n'
+            message = premessage + u"\n".join([u"{} ({})".format(t, e) for (t,e) in texts])
         else:
-            message = u'Unrecognized add-on.\n'
+            message = u'Say what?\n'
+
         markup = self._create_initial()
         self._change_state('initial')
         kwargs = {"text": message, "reply_markup": markup}
@@ -436,15 +438,15 @@ class ToDoBot(telebot.TeleBot, object):
             if idx == 0:
                 self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "remind_at": time.time() + 3600,
-                                       "from_id": self.update['form']['id']})
+                                       "from_id": self.update['from']['id']})
             elif idx == 1:
                 self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "remind_at": time.time() + 3600*3,
-                                       "from_id": self.update['form']['id']})
+                                       "from_id": self.update['from']['id']})
             elif idx == 2:
                 self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "remind_at": time.time() + 3600*24,
-                                       "from_id": self.update['form']['id']})
+                                       "from_id": self.update['from']['id']})
         elif idx == 3:
             user = self.users_db.find_one({"user_id": self.update['from']['id']})
             if not ('city' in user and user['city']):
@@ -561,7 +563,7 @@ class ToDoBot(telebot.TeleBot, object):
                 message = u'City: {}'.format(place)
                 message += u'\nWe will send you an update daily. What time do you want?\nExample: 7:00'
                 markup = telebot.types.ReplyKeyboardMarkup(selective=True, resize_keyboard=True, row_width=1)
-                markup.add(u'Turn off', u'Cancel')
+                markup.add(u'Cancel')
                 self._change_state('notifications_choose_time')
             else:
                 message = u"Do not know this city. Type again."
@@ -722,7 +724,7 @@ class ToDoBot(telebot.TeleBot, object):
 
         if state == 'initial':
             text= self.update['text'].strip()
-            if text == 'Cancel':
+            if text in ['Cancel', '/cancel', '/start', '/help']:
                 kwargs = self.cancel_all()
             if text == self.todo_name:
                 kwargs = self.todo()

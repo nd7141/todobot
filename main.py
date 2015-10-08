@@ -14,7 +14,7 @@ from pubsub import Publisher
 
 def get_token(filename):
     with open(filename) as f:
-        return f.readlines()[0]
+        return f.readlines()[0].strip()
 
 
 def send_update(bot, users_db, groups_db, message):
