@@ -52,7 +52,7 @@ class ToDoBot(telebot.TeleBot, object):
                          ]
         self.commands += map(lambda s: s + "@todobbot", self.commands)
         self.todo_name = u'New task {}'.format(emoji_plus)
-        self.addons_name = u'Add-ons {}'.format(emoji_rocket)
+        self.addons_name = u'More {}'.format(emoji_rocket)
         self.support_name = u'Support {}'.format(emoji_email)
         self.notify_name = u'Remind me {}'.format(emoji_hourglass)
         self.settings_name = u'Settings {}'.format(emoji_wrench)
@@ -66,7 +66,7 @@ class ToDoBot(telebot.TeleBot, object):
         yura_pekov = 1040729
         yura_oparin = 93518804
         founding_group = -27571522
-        self.cools = [me, testdevgroup]
+        self.cools = [me]
 
         self.googlegeo = geocoders.GoogleV3()
 
@@ -205,7 +205,7 @@ class ToDoBot(telebot.TeleBot, object):
         markup.row(self.notifications_name, self.settings_name)
         todos = self._all_lists()
         markup.add(*[task['text'] for task in todos.get('', []) if 'text' in task])
-        lists = sorted([u"{} ({})".format(todo, len(todos[todo])) for todo in todos if todo], key=unicode.lower)
+        lists = sorted([u"{} ({}) {}".format(todo, len(todos[todo]), emoji_memo) for todo in todos if todo], key=unicode.lower)
         l = 2
         for i in xrange(0, len(lists), l):
             markup.row(*lists[i:i+l])
@@ -213,7 +213,7 @@ class ToDoBot(telebot.TeleBot, object):
 
     def _generate_link(self):
         base_url = u'thetodobot.com/{}'
-        user =  self.users_db.find_one({"user_id": self.update['from']['id']})
+        user = self.users_db.find_one({"user_id": self.update['from']['id']})
         link_code = user.get("link_code", "")
         if not link_code:
             link_code = base64.b64encode(os.urandom(6), "-_")
@@ -411,7 +411,7 @@ class ToDoBot(telebot.TeleBot, object):
         return kwargs
 
     def support(self):
-        message = u'You can email us at support@thetodobot.com\n or chat with us at thetodobot.com {}'.format(emoji_wink)
+        message = u'Support: To give feedback or report a bug, send an email to support@thetodobot.com or chat directly with my creators on thetodobot.com'.format(emoji_wink)
         markup = self._create_initial()
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
@@ -432,41 +432,46 @@ class ToDoBot(telebot.TeleBot, object):
 
     # notify 1
     def notify_select(self):
-        message = None
-        markup = None
-        options = [u'1 hour', u'3 Hours', u'1 day', u'Your time', u'Cancel']
-        idx = find_in_list(options, self.update['text'])
-        if idx in [0,1,2,4]: # not your time
+        if self.update['text'] == u'Cancel':
+            message = u'Done {}'.format(emoji_boxcheck)
             markup = self._create_initial()
             self._change_state('initial')
-            if idx == 0:
-                self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
-                                       "remind_at": time.time() + 3600,
-                                       "from_id": self.update['from']['id']})
-                message = u'Set a notification at {} {}'.format(datetime.datetime.fromtimestamp(time.time() + 3600).strftime('%-H:%M'),
-                                                                emoji_wink)
-            elif idx == 1:
-                self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
-                                       "remind_at": time.time() + 3600*3,
-                                       "from_id": self.update['from']['id']})
-                message = u'Set a notification at {} {}'.format(datetime.datetime.fromtimestamp(time.time() + 3600*3).strftime('%-H:%M'),
-                                                                emoji_wink)
-            elif idx == 2:
-                self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
-                                       "remind_at": time.time() + 3600*24,
-                                       "from_id": self.update['from']['id']})
-                message = u'Set a notification at {} {}'.format(datetime.datetime.fromtimestamp(time.time() + 3600*24).strftime('%-H:%M'),
-                                                                emoji_wink)
-        elif idx == 3:
-            user = self.users_db.find_one({"user_id": self.update['from']['id']})
-            if not ('city' in user and user['city']):
-                message = u"First, let's configure your city. Type the name of your city."
-                markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-                markup.add(u'Cancel')
-                self._change_state('notify_choose_city')
-            else:
-                kwargs = self.notify_write_time()
-                message, markup = kwargs['text'], kwargs['reply_markup']
+        else:
+            message = None
+            markup = None
+            options = [u'1 hour', u'3 Hours', u'1 day', u'Your time', u'Cancel']
+            idx = find_in_list(options, self.update['text'])
+            if idx in [0,1,2,4]: # not your time
+                markup = self._create_initial()
+                self._change_state('initial')
+                if idx == 0:
+                    self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
+                                           "remind_at": time.time() + 3600,
+                                           "from_id": self.update['from']['id']})
+                    message = u'Set a notification at {} {}'.format(datetime.datetime.fromtimestamp(time.time() + 3600).strftime('%-H:%M'),
+                                                                    emoji_wink)
+                elif idx == 1:
+                    self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
+                                           "remind_at": time.time() + 3600*3,
+                                           "from_id": self.update['from']['id']})
+                    message = u'Set a notification at {} {}'.format(datetime.datetime.fromtimestamp(time.time() + 3600*3).strftime('%-H:%M'),
+                                                                    emoji_wink)
+                elif idx == 2:
+                    self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
+                                           "remind_at": time.time() + 3600*24,
+                                           "from_id": self.update['from']['id']})
+                    message = u'Set a notification at {} {}'.format(datetime.datetime.fromtimestamp(time.time() + 3600*24).strftime('%-H:%M'),
+                                                                    emoji_wink)
+            elif idx == 3:
+                user = self.users_db.find_one({"user_id": self.update['from']['id']})
+                if not ('city' in user and user['city']):
+                    message = u"First, let's configure your city. Type the name of your city."
+                    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                    markup.add(u'Cancel')
+                    self._change_state('notify_choose_city')
+                else:
+                    kwargs = self.notify_write_time()
+                    message, markup = kwargs['text'], kwargs['reply_markup']
 
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
@@ -717,6 +722,15 @@ class ToDoBot(telebot.TeleBot, object):
             lst.append(el)
         return lst
 
+    def greetings(self):
+        message = u"""Hey, {}
+        First things first, let's create your first task.
+        Click on New task {}""".format(self.update['from']['first_name'], emoji_plus)
+        markup = self._create_initial()
+        self._change_state('initial')
+        kwargs = {"text": message, "reply_markup": markup}
+        return kwargs
+
     def execute(self):
         new_messages = []
         kwargs = {"text": None, "reply_markup": None}
@@ -740,9 +754,11 @@ class ToDoBot(telebot.TeleBot, object):
 
         if state == 'initial':
             text= self.update['text'].strip()
-            if text in ['Cancel', '/cancel', '/start', '/help']:
+            if text in ['Cancel', '/cancel', '/help']:
                 kwargs = self.cancel_all()
-            if text == self.todo_name:
+            elif text == '/start':
+                kwargs = self.greetings()
+            elif text == self.todo_name:
                 kwargs = self.todo()
             elif text == self.addons_name:
                 kwargs = self.addons()

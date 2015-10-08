@@ -59,7 +59,7 @@ class Reminder(object):
 
         # compose a message
         messages = [u'{fire}'.format(fire=emoji_fire*3),
-                    u"{} {}".format(emoji_fuji, datetime.date.today().strftime("%-d %B, %A")), '']
+                    u"{} {}".format(emoji_fuji, datetime.date.today().strftime("%-d %-B, %A")), '']
         messages += self.get_tasks(chat_id)
         messages.extend([u'', u"{} {}".format(emoji_globe, city), self.get_weather(city),
                          u"{} {}".format(emoji_car, self.get_traffic(lat, lng))])
