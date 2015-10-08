@@ -403,7 +403,7 @@ class ToDoBot(telebot.TeleBot, object):
             premessage = u'Finished tasks:\n'
             message = premessage + u"\n".join([u"{} ({})".format(t, e) for (t,e) in texts])
         else:
-            message = u'Say what?\n'
+            message = u'Dunno what u mean\n'
 
         markup = self._create_initial()
         self._change_state('initial')
@@ -425,7 +425,7 @@ class ToDoBot(telebot.TeleBot, object):
     def notify(self):
         message = u"When to remind?"
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
-        markup.add(*[u'1 hour', u'3 Hours', u'1 day', u'Specific time', u'Cancel'])
+        markup.add(*[u'1 hour', u'3 Hours', u'1 day', u'Your time', u'Cancel'])
         self._change_state('notify_select')
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
@@ -434,24 +434,29 @@ class ToDoBot(telebot.TeleBot, object):
     def notify_select(self):
         message = None
         markup = None
-        options = [u'1 hour', u'3 Hours', u'1 day', u'Specific time', u'Cancel']
+        options = [u'1 hour', u'3 Hours', u'1 day', u'Your time', u'Cancel']
         idx = find_in_list(options, self.update['text'])
-        if idx in [0,1,2,4]:
-            message = u'Done {}'.format(emoji_boxcheck)
+        if idx in [0,1,2,4]: # not your time
             markup = self._create_initial()
             self._change_state('initial')
             if idx == 0:
                 self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "remind_at": time.time() + 3600,
                                        "from_id": self.update['from']['id']})
+                message = u'Set a notification at {} {}'.format(datetime.datetime.fromtimestamp(time.time() + 3600).strftime('%-H:%M'),
+                                                                emoji_wink)
             elif idx == 1:
                 self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "remind_at": time.time() + 3600*3,
                                        "from_id": self.update['from']['id']})
+                message = u'Set a notification at {} {}'.format(datetime.datetime.fromtimestamp(time.time() + 3600*3).strftime('%-H:%M'),
+                                                                emoji_wink)
             elif idx == 2:
                 self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "remind_at": time.time() + 3600*24,
                                        "from_id": self.update['from']['id']})
+                message = u'Set a notification at {} {}'.format(datetime.datetime.fromtimestamp(time.time() + 3600*24).strftime('%-H:%M'),
+                                                                emoji_wink)
         elif idx == 3:
             user = self.users_db.find_one({"user_id": self.update['from']['id']})
             if not ('city' in user and user['city']):
@@ -460,7 +465,8 @@ class ToDoBot(telebot.TeleBot, object):
                 markup.add(u'Cancel')
                 self._change_state('notify_choose_city')
             else:
-                message, markup = self.notify_write_time()
+                kwargs = self.notify_write_time()
+                message, markup = kwargs['text'], kwargs['reply_markup']
 
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
@@ -483,7 +489,8 @@ class ToDoBot(telebot.TeleBot, object):
                     place, (lat, lng) = data
                     self.users_db.update({"user_id": self.update['from']['id']},
                         {"$set": {'city': place, 'lat': lat, 'lng': lng}})
-                    message, markup = self.notify_write_time()
+                    kwargs = self.notify_write_time()
+                    message, markup = kwargs['text'], kwargs['reply_markup']
                 else:
                     message = u'Please, type your city again.'
                     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
@@ -493,7 +500,7 @@ class ToDoBot(telebot.TeleBot, object):
 
     # notify 3
     def notify_write_time(self):
-        message = u'Write your time\n Example: Saturday 7:00\n 12 Aug 12:30'
+        message = u'Write your time\n Example: Saturday 7:00\n12 Aug 12:30\n 7 pm'
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
         markup.add(u'Cancel')
         self._change_state('notify_get_time')
@@ -515,14 +522,16 @@ class ToDoBot(telebot.TeleBot, object):
                 offset = int(date.replace(tzinfo=tz).strftime('%s'))
                 print offset, time.time()
                 if offset > time.time():
-                    message = u'Done {}'.format(emoji_boxcheck)
+                    message = u'Set a notification at {} {}'.format(datetime.datetime.fromtimestamp(offset).strftime('%-H:%M'),
+                                                                    emoji_wink)
                     markup = self._create_initial()
                     self._change_state('initial')
                     self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "remind_at": offset,
                                        "from_id": self.update['from']['id']})
                 else:
-                    message = u'The date is passed. Please type again.'
+                    now = datetime.datetime.now() + datetime.timedelta(days=1)
+                    message = u'Specify time in the future. For example, {} {}.'.format(now.strftime("%-d"), date.strftime("%-H%P"))
                     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                     markup.add(u'Cancel')
             else:
@@ -539,7 +548,7 @@ class ToDoBot(telebot.TeleBot, object):
     def notifications(self):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
         if 'lat' not in user:
-            message = u"Let's first set up your city."
+            message = u"Let's first set up your city {}".format(emoji_globe)
             markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
             for reminder in self.reminder_db.find({"chat_id": self.update['chat']['id']}):
                 markup.add(self._to_hours(reminder['remind_at']))
@@ -592,7 +601,7 @@ class ToDoBot(telebot.TeleBot, object):
                     d = datetime.datetime.fromtimestamp(int(r['remind_at']))
                     if d.hour == date.hour and d.minute == date.minute:
                         self.reminder_db.remove(r)
-                        message = u'Done {}'.format(emoji_boxcheck)
+                        message = u'Removed notification at {}'.format(date.strftime("%-H:%M"))
                         markup = self._create_initial()
                         self._change_state('initial')
                         break
@@ -609,7 +618,7 @@ class ToDoBot(telebot.TeleBot, object):
                     self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                                  "remind_at": offset, "repetitive": True,
                                                  "from_id": self.update['from']['id']})
-                    message = u'Set a notification at {:02d}:{:02d} {}'.format(date.hour, date.minute, emoji_wink)
+                    message = u'Set a notification at {} {}'.format(date.strftime("%-H:%M"), emoji_wink)
                     markup = self._create_initial()
                     self._change_state('initial')
             else:
