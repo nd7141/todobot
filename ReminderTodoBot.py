@@ -14,6 +14,7 @@ class Reminder(object):
         self.tasks_db = tasks_db
         self.todobot = todobot
         self.owm = owm
+        self.messages = []
 
     def set_messaging(self, messaging):
         self.send_message = messaging
@@ -22,20 +23,44 @@ class Reminder(object):
         ya_url = "https://static-maps.yandex.ru/1.x/?ll={lng},{lat}&spn=0.05,0.05&l=map,trf".format(lat=lat, lng=lng)
         return ya_url
 
-    def get_weather(self, place):
+    # message 1
+    def get_greetings(self, data):
+        user = self.users_db.find_one({"user_id": data['from_id']})
+        if user:
+            first_name = user['first_name']
+        else:
+            first_name = ""
+        self.messages.append(u"Hey {} {}".format(first_name, emoji_smile))
+
+    # message 2
+    def get_city_info(self, city):
+        # day
+        day = datetime.datetime.now().strftime("%-d %B")
+        # temperature
         try:
-            url_place = urllib.quote(place.encode('utf-8'))
+            url_place = urllib.quote(city.encode('utf-8'))
             observation = self.owm.weather_at_place(url_place)
         except Exception as e:
             print e
-            return u'Temperature: N/A'
-        if observation:
-            w = observation.get_weather()
-            return u"{} {} {}".format(emoji_suncloud, w.get_temperature('celsius')['temp'], u"\u2103")
+            temperature = u'Sunny {}'.format(emoji_sun)
         else:
-            return u'Temperature: N/A'
+            if observation:
+                w = observation.get_weather()
+                temperature = u"{} {}".format(w.get_temperature('celsius')['temp'], u"\u2103")
+            else:
+                temperature = u'Sunny {}'.format(emoji_sun)
+        self.messages.append(u"It's {} and {} in {}".format(day, temperature, city.split()[0]))
 
+    # message 3
+    def get_number_completed(self, data):
+        # number of completed
+        completed = self.tasks_db.count({"chat_id": data['chat_id'], "finished": True})
+        if completed:
+            self.messages.append(u"You already completed {} tasks {}".format(completed, emoji_star*3))
+        else:
+            self.messages.append(u"Get your first task done! {}".format(emoji_bomb))
 
+    # message 4
     def get_tasks(self, chat_id):
         texts = []
         count = 0
@@ -43,9 +68,11 @@ class Reminder(object):
             if 'text' in task:
                 count += 1
                 number = u"".join([emoji_numbers[d] for d in map(int, list(str(count)))])
-                texts.append(u"{}. {}".format(number, task['text']))
-        return texts
-
+                texts.append(u"{} {}".format(number, task['text']))
+        if count:
+            self.messages.append(u"\n".join(texts))
+        else:
+            self.messages.append(u"It's time to create another task! {}".format(emoji_bomb))
 
     def send_reminder(self, data):
         remind_at = float(data['remind_at'])
@@ -57,20 +84,21 @@ class Reminder(object):
             lat = user.get('lat', 55.75396)
             lng = user.get('lng', 37.620393)
 
-        # compose a message
-        messages = [u'{fire}'.format(fire=emoji_fire*3),
-                    u"{} {}".format(emoji_fuji, datetime.date.today().strftime("%-d %-B, %A")), '']
-        messages += self.get_tasks(chat_id)
-        messages.extend([u'', u"{} {}".format(emoji_globe, city), self.get_weather(city),
-                         u"{} {}".format(emoji_car, self.get_traffic(lat, lng))])
-        messages.append(u'{fire}'.format(fire=emoji_fire*3))
-        message = '\n'.join(messages)
+        # compose messages
+        self.get_greetings(data)
+        self.get_city_info(city)
+        self.get_number_completed(data)
+        self.get_tasks(chat_id)
+
+        print self.messages
 
         print u'Chat {} reminds at {}'.format(chat_id, datetime.datetime.fromtimestamp(remind_at).strftime("%-d %B %-H:%M"))
-        try:
-            self.todobot.send_message(chat_id, message)
-        except:
-            print u'Failed to send message to {0}'.format(chat_id)
+        for message in self.messages:
+            try:
+                self.todobot.send_message(chat_id, message)
+            except:
+                print u'Failed to send message to {0}'.format(chat_id)
+        self.messages = []
 
         # set another reminder or remove reminder
         if data.get('repetitive', False):
