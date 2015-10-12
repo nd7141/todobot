@@ -46,17 +46,21 @@ class Reminder(object):
         else:
             if observation:
                 w = observation.get_weather()
-                temperature = u"{} {}".format(w.get_temperature('celsius')['temp'], u"\u2103")
+                try:
+                    t = int(float(w.get_temperature('celsius')['temp']))
+                    temperature = u"{:+}{}".format(t, u"\u2103")
+                except:
+                    temperature = u'Sunny {}'.format(emoji_sun)
             else:
                 temperature = u'Sunny {}'.format(emoji_sun)
-        self.messages.append(u"It's {} and {} in {}".format(day, temperature, city.split()[0]))
+        self.messages.append(u"It's {} and {} in {} {}".format(day, temperature, city.split(',')[0], emoji_city))
 
     # message 3
     def get_number_completed(self, data):
         # number of completed
         completed = self.tasks_db.count({"chat_id": data['chat_id'], "finished": True})
         if completed:
-            self.messages.append(u"You already completed {} tasks {}".format(completed, emoji_star*3))
+            self.messages.append(u"You already completed {} tasks {}".format(completed, emoji_check_mark))
         else:
             self.messages.append(u"Get your first task done! {}".format(emoji_bomb))
 
@@ -89,8 +93,6 @@ class Reminder(object):
         self.get_city_info(city)
         self.get_number_completed(data)
         self.get_tasks(chat_id)
-
-        print self.messages
 
         print u'Chat {} reminds at {}'.format(chat_id, datetime.datetime.fromtimestamp(remind_at).strftime("%-d %B %-H:%M"))
         for message in self.messages:

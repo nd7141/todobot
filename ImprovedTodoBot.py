@@ -199,10 +199,7 @@ class ToDoBot(telebot.TeleBot, object):
 
     def _create_initial(self):
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
-        # markup.add(self.todo_name)
         markup.row(self.todo_name, self.addons_name)
-        markup.row(self.notify_name, self.support_name)
-        markup.row(self.notifications_name, self.settings_name)
         todos = self._all_lists()
         markup.add(*[task['text'] for task in todos.get('', []) if 'text' in task])
         lists = sorted([u"{} ({}) {}".format(todo, len(todos[todo]), emoji_memo) for todo in todos if todo], key=unicode.lower)
@@ -383,32 +380,41 @@ class ToDoBot(telebot.TeleBot, object):
 
     def addons(self):
         message = u'Choose add-on {}'.format(emoji_bomb)
-        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
-        markup.add(u'All tasks', u'Finished tasks', u'Cancel')
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2, selective=True)
+        markup.row(self.notify_name, self.support_name)
+        markup.row(self.notifications_name, self.settings_name)
+        markup.row(u'All tasks {}'.format(emoji_memo), u'Finished tasks {}'.format(emoji_check_mark))
+        markup.row(u'Cancel')
         self._change_state('addons_choose')
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
 
     def addons_choose(self):
+        markup = self._create_initial()
+        self._change_state('initial')
         if self.update['text'] == u'Cancel':
             message = u'Done {}'.format(emoji_boxcheck)
-        elif self.update['text'] == u'All tasks':
+            return {"text": message, "reply_markup": markup}
+        elif self.update['text'].startswith(u'All tasks'):
             todos = self._all_lists()
             premessage = u'All tasks:\n'
             texts = [task['text'] for lst in todos for task in todos[lst] if 'text' in task]
             message = premessage + u'\n'.join(texts)
-        elif self.update['text'] == u'Finished tasks':
+            return {"text": message, "reply_markup": markup}
+        elif self.update['text'].startswith(u'Finished tasks'):
             cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
             texts = [(task['text'], task['end']) for task in cursor if 'text' in task and 'end' in task]
             premessage = u'Finished tasks:\n'
             message = premessage + u"\n".join([u"{} ({})".format(t, e) for (t,e) in texts])
-        else:
-            message = u'Dunno what u mean\n'
-
-        markup = self._create_initial()
-        self._change_state('initial')
-        kwargs = {"text": message, "reply_markup": markup}
-        return kwargs
+            return {"text": message, "reply_markup": markup}
+        elif self.update['text'] == self.notify_name:
+            return self.notify()
+        elif self.update['text'] == self.support_name:
+            return self.support()
+        elif self.update['text'] == self.notifications_name:
+            return self.notifications()
+        elif self.update['text'] == self.settings_name:
+            return self.settings()
 
     def support(self):
         message = u'Support: To give feedback or report a bug, send an email to support@thetodobot.com or chat directly with my creators on thetodobot.com'.format(emoji_wink)
