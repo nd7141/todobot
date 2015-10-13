@@ -5,7 +5,6 @@ from telebot import TeleBot
 import pymongo
 from SubscriptionTodoBot import Subscription
 
-
 # read token safely
 def get_token(filename):
     with open(filename) as f:

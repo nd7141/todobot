@@ -5,6 +5,7 @@ from __future__ import division
 import time
 import traceback
 from emoji_chars import *
+import os
 
 class Subscription(object):
     def __init__(self, subscription_db, users_db, todobot, **kwargs):
@@ -54,6 +55,11 @@ class Subscription(object):
                 self.is_alive = False
                 print("Subscription. Stop listening. Safely recovering from error.")
                 print(e)
+                try:
+                    if os.path.getsize('reminder_log.txt') > 10*1024*1024: # 10mb
+                        os.remove('log.txt')
+                except:
+                    pass
                 with open('subscription_log.txt', 'a+') as f:
                     f.write('''Exception in get_update at {0}.\n'''.format(time.strftime("%d-%m-%Y %H:%M:%S")))
                     f.write(traceback.format_exc() + '\n')

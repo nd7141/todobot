@@ -57,6 +57,9 @@ class ToDoBot(telebot.TeleBot, object):
         self.notify_name = u'Remind me {}'.format(emoji_hourglass)
         self.settings_name = u'Settings {}'.format(emoji_wrench)
         self.notifications_name = u'Notifications {}'.format(emoji_alarm)
+        self.current_tasks_name = u'All tasks {}'.format(emoji_memo)
+        self.finished_tasks_name = u'Finished tasks {}'.format(emoji_check_mark)
+        self.get_premium_name = u'Get Premium {}'.format(emoji_fire)
 
         self.commands_name = [self.todo_name, self.addons_name, self.notifications_name, self.notify_name, self.settings_name,
                          self.support_name]
@@ -247,7 +250,10 @@ class ToDoBot(telebot.TeleBot, object):
         elif self.update['text'].startswith(u'Create a new Todo list'):
             user = self.users_db.find_one({"user_id": self.update['from']['id']})
             if float(user.get('expiry_date', 0)) < time.time(): # expired:
-                message = u'Create a new list with a Premium subscription at {}'.format(self._generate_link())
+                message = u"With premium account you can create named lists, set notifications, and access new features first.\n"
+                message += u"To get a Premium account go to {}\n".format(self._generate_link())
+                message += u"Copy the code and paste in the chat with bot to get the monthly subscription.\n"
+                message += u"Contact us in case of trouble: support@thetodobot.com"
                 markup = self._create_initial()
                 self._change_state('initial')
             else:
@@ -329,6 +335,7 @@ class ToDoBot(telebot.TeleBot, object):
     def remove(self, text, lst):
         todos = self._all_lists()
         tasks = todos[lst]
+        message, markup = '', None
         for task in tasks:
             if task['text'] == text:
                 self.tasks_db.update({"_id": task["_id"]},
@@ -383,7 +390,8 @@ class ToDoBot(telebot.TeleBot, object):
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2, selective=True)
         markup.row(self.notify_name, self.support_name)
         markup.row(self.notifications_name, self.settings_name)
-        markup.row(u'All tasks {}'.format(emoji_memo), u'Finished tasks {}'.format(emoji_check_mark))
+        markup.row(self.current_tasks_name, self.finished_tasks_name)
+        markup.row(self.get_premium_name)
         markup.row(u'Cancel')
         self._change_state('addons_choose')
         kwargs = {"text": message, "reply_markup": markup}
@@ -395,13 +403,13 @@ class ToDoBot(telebot.TeleBot, object):
         if self.update['text'] == u'Cancel':
             message = u'Done {}'.format(emoji_boxcheck)
             return {"text": message, "reply_markup": markup}
-        elif self.update['text'].startswith(u'All tasks'):
+        elif self.update['text'] == self.current_tasks_name:
             todos = self._all_lists()
             premessage = u'All tasks:\n'
             texts = [task['text'] for lst in todos for task in todos[lst] if 'text' in task]
             message = premessage + u'\n'.join(texts)
             return {"text": message, "reply_markup": markup}
-        elif self.update['text'].startswith(u'Finished tasks'):
+        elif self.update['text'] == self.finished_tasks_name:
             cursor = self.tasks_db.find({"chat_id": self.update['chat']['id'], "finished": True, "to_id": ''}).sort("end", -1)
             texts = [(task['text'], task['end']) for task in cursor if 'text' in task and 'end' in task]
             premessage = u'Finished tasks:\n'
@@ -415,6 +423,23 @@ class ToDoBot(telebot.TeleBot, object):
             return self.notifications()
         elif self.update['text'] == self.settings_name:
             return self.settings()
+        elif self.update['text'] == self.get_premium_name:
+            return self.get_premium()
+
+    def get_premium(self):
+        user = self.users_db.find_one({"user_id": self.update['from']['id']})
+        if float(user.get('expiry_date', 0)) < time.time(): # expired:
+            message = u"With premium account you can create named lists, set notifications, and access new features first.\n"
+            message += u"To get a Premium account go to {}\n".format(self._generate_link())
+            message += u"Copy the code and paste in the chat with bot to get the monthly subscription.\n"
+            message += u"Contact us in case of trouble: support@thetodobot.com"
+            markup = self._create_initial()
+            self._change_state('initial')
+            kwargs = {"text": message, "reply_markup": markup}
+        else:
+            message = u"You already have a Premium account! {} You are awesome!!!".format(emoji_fire)
+            kwargs = {"text": message}
+        return kwargs
 
     def support(self):
         message = u'Support: To give feedback or report a bug, send an email to support@thetodobot.com or chat directly with my creators on thetodobot.com'.format(emoji_wink)
@@ -710,7 +735,7 @@ class ToDoBot(telebot.TeleBot, object):
         self.users_db.update({"user_id": self.update['from']['id']},
             {"$set": {"link_code": link_code, "payment_code": payment_code}})
         # return message, markup
-        message = u"You received Premium subscription for 30 days! {}".format(emoji_thumb)
+        message = u"You received Premium subscription for 30 days! {}\nYou're awesome!!!".format(emoji_thumb)
         markup = self._create_initial()
         self._change_state('initial')
         kwargs = {"text": message, "reply_markup": markup}
@@ -729,9 +754,7 @@ class ToDoBot(telebot.TeleBot, object):
         return lst
 
     def greetings(self):
-        message = u"""Hey, {}
-        First things first, let's create your first task.
-        Click on New task {}""".format(self.update['from']['first_name'], emoji_plus)
+        message = u"""Hey, {}\nFirst things first, let's create your first task.\nClick on New task {}""".format(self.update['from']['first_name'], emoji_plus)
         markup = self._create_initial()
         self._change_state('initial')
         kwargs = {"text": message, "reply_markup": markup}
@@ -822,7 +845,9 @@ class ToDoBot(telebot.TeleBot, object):
         elif state == 'notifications_choose_time':
             kwargs = self.notifications_choose_time()
         else:
-            kwargs = u'Return to initial menu {}'.format(emoji_return_arrow), self._create_initial()
+            message = u'Return to initial menu {}'.format(emoji_return_arrow)
+            markup = self._create_initial()
+            kwargs = {"text": message, "reply_markup": markup}
             self._change_state('initial')
 
         new_messages = self.add_to_end(kwargs, new_messages)
