@@ -165,6 +165,9 @@ class ToDoBot(telebot.TeleBot, object):
         if not user:
             user_json = TDO.User.from_json(self.update['from'], self.update['date'])
             self.users_db.insert_one(user_json.__dict__)
+            # give 15 free days of Premium
+            self.users_db.update({"user_id": self.update['from']['id']},
+                    {"$set": {'expiry_date': time.time() + 86400*15}})
             now = datetime.datetime.now() + datetime.timedelta(days=1)
             offset = float(now.strftime("%s"))
             self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
@@ -425,6 +428,8 @@ class ToDoBot(telebot.TeleBot, object):
             return self.settings()
         elif self.update['text'] == self.get_premium_name:
             return self.get_premium()
+        else:
+            return {"text": ''}
 
     def get_premium(self):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
@@ -754,7 +759,15 @@ class ToDoBot(telebot.TeleBot, object):
         return lst
 
     def greetings(self):
-        message = u"""Hey, {}\nFirst things first, let's create your first task.\nClick on New task {}""".format(self.update['from']['first_name'], emoji_plus)
+        user = self.users_db.find_one({"user_id": self.update['from']['id']})
+        if float(user['created']) + 60 > time.time(): # was just created
+            message = u"Hey, {}!!! {}\n".format(user['first_name'], emoji_sun)
+            message += u"Thank you for joining our community! {}\n".format(emoji_thumb)
+            message += u"We give you 15 days Premium subscription! {}\n".format(emoji_fire)
+            message += u"First things first, let's create your first task.\n"
+            message += u"Press {}".format(self.todo_name)
+        else:
+            message = u'Type "cancel"" in case of trouble.\nPress {} to create another task'.format(self.todo_name)
         markup = self._create_initial()
         self._change_state('initial')
         kwargs = {"text": message, "reply_markup": markup}
@@ -783,7 +796,7 @@ class ToDoBot(telebot.TeleBot, object):
 
         if state == 'initial':
             text= self.update['text'].strip()
-            if text in ['Cancel', '/cancel', '/help']:
+            if text.lower() in ['cancel', '/cancel', '/help']:
                 kwargs = self.cancel_all()
             elif text == '/start':
                 kwargs = self.greetings()
