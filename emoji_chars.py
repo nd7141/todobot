@@ -46,6 +46,7 @@ emoji_fuji = u'\U0001F5FB'
 emoji_car = u'\U0001F698'
 emoji_suncloud = u'\u26C5'
 emoji_sun = u'\u2600'
+emoji_inbox = u'\U0001F4E5'
 
 emoji_numbers = {
     1: u"\u0031\u20E3",

@@ -140,7 +140,10 @@ class ToDoBot(telebot.TeleBot, object):
             self.set_update(update)
             new_messages = self.execute()
             for kwargs in new_messages:
-                print 'Text:', kwargs['text']
+                if isinstance(kwargs, str):
+                    print 'kwargs:', kwargs
+                else:
+                    print 'Text:', kwargs['text']
                 try:
                     print 'Keyboard:', kwargs['reply_markup'].keyboard
                 except (AttributeError, KeyError):
@@ -160,14 +163,21 @@ class ToDoBot(telebot.TeleBot, object):
     def _tasks_from(self, lst):
         return list(self.tasks_db.find({"chat_id": self.update['chat']['id'], 'to_id': lst, 'finished': False}))
 
+    def premium_message(self):
+        message = u" {} With premium account you can create named lists, set notifications, access new features first, and much more.\n".format(emoji_right_arrow)
+        message += u" {}To get a Premium account go to {}\n".format(emoji_right_arrow, self._generate_link())
+        message += u"{} Copy the code and paste in the chat with bot!\n".format(emoji_right_arrow)
+        message += u" {} Contact us in case of trouble: support@thetodobot.com".format(emoji_email)
+        return message
+
     def write_user(self):
         user = self.users_db.find_one({"user_id": self.update["from"]["id"]})
         if not user:
             user_json = TDO.User.from_json(self.update['from'], self.update['date'])
             self.users_db.insert_one(user_json.__dict__)
-            # give 15 free days of Premium
+            # give free days of Premium
             self.users_db.update({"user_id": self.update['from']['id']},
-                    {"$set": {'expiry_date': time.time() + 86400*15}})
+                    {"$set": {'expiry_date': time.time() + 86400*7}})
             now = datetime.datetime.now() + datetime.timedelta(days=1)
             offset = float(now.strftime("%s"))
             self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
@@ -203,9 +213,28 @@ class ToDoBot(telebot.TeleBot, object):
                     todos.setdefault(task['to_id'], []).append(task)
         return todos
 
+    def _check_if_premium(self):
+        if 'title' in self.update: # group
+            group = self.groups_db.find_one({"chat_id": self.update['chat']['id']})
+            if group:
+                participants = group.get('participants', [])
+                if participants:
+                    for p in participants:
+                        user = self.users_db.find_one({"user_id": p})
+                        if float(user.get('expiry_date', 0)) > time.time():
+                            return True
+                    return False
+        else:
+            user = self.users_db.find_one({"user_id": self.update['from']['id']})
+            if float(user.get('expiry_date', 0)) > time.time():
+                return True
+            return False
+
     def _create_initial(self):
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
         markup.row(self.todo_name, self.addons_name)
+        if not self._check_if_premium():
+            markup.row(self.get_premium_name)
         todos = self._all_lists()
         markup.add(*[task['text'] for task in todos.get('', []) if 'text' in task])
         lists = sorted([u"{} ({}) {}".format(todo, len(todos[todo]), emoji_memo) for todo in todos if todo], key=unicode.lower)
@@ -253,10 +282,7 @@ class ToDoBot(telebot.TeleBot, object):
         elif self.update['text'].startswith(u'Create a new Todo list'):
             user = self.users_db.find_one({"user_id": self.update['from']['id']})
             if float(user.get('expiry_date', 0)) < time.time(): # expired:
-                message = u"With premium account you can create named lists, set notifications, and access new features first.\n"
-                message += u"To get a Premium account go to {}\n".format(self._generate_link())
-                message += u"Copy the code and paste in the chat with bot to get the monthly subscription.\n"
-                message += u"Contact us in case of trouble: support@thetodobot.com"
+                message = self.premium_message()
                 markup = self._create_initial()
                 self._change_state('initial')
             else:
@@ -434,10 +460,7 @@ class ToDoBot(telebot.TeleBot, object):
     def get_premium(self):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
         if float(user.get('expiry_date', 0)) < time.time(): # expired:
-            message = u"With premium account you can create named lists, set notifications, and access new features first.\n"
-            message += u"To get a Premium account go to {}\n".format(self._generate_link())
-            message += u"Copy the code and paste in the chat with bot to get the monthly subscription.\n"
-            message += u"Contact us in case of trouble: support@thetodobot.com"
+            message = self.premium_message()
             markup = self._create_initial()
             self._change_state('initial')
             kwargs = {"text": message, "reply_markup": markup}
@@ -451,11 +474,6 @@ class ToDoBot(telebot.TeleBot, object):
         markup = self._create_initial()
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
-
-    def current_time(self):
-        user = self.users_db.find_one({"user_id": self.update['from']['id']})
-        if 'lat' in user:
-            pass
 
     # notify 0
     def notify(self):
@@ -733,7 +751,8 @@ class ToDoBot(telebot.TeleBot, object):
         # extend expiration and increment count of subscription
         self.users_db.update({"user_id": user["user_id"]},
                 {"$set": {'expiry_date': time.time() + 86400*30,
-                          'sub_count': user.get('sub_count', 0) + 1}})
+                          'sub_count': user.get('sub_count', 0) + 1,
+                          "premium": True}})
         # change link and payment code
         link_code = base64.b64encode(os.urandom(6), "-_")
         payment_code = base64.b64encode(link_code).replace('=', '')
@@ -763,7 +782,7 @@ class ToDoBot(telebot.TeleBot, object):
         if float(user['created']) + 60 > time.time(): # was just created
             message = u"Hey, {}!!! {}\n".format(user['first_name'], emoji_sun)
             message += u"Thank you for joining our community! {}\n".format(emoji_thumb)
-            message += u"We give you 15 days Premium subscription! {}\n".format(emoji_fire)
+            message += u"We give you 7 days Premium subscription! {}\n".format(emoji_fire)
             message += u"First things first, let's create your first task.\n"
             message += u"Press {}".format(self.todo_name)
         else:
@@ -812,6 +831,8 @@ class ToDoBot(telebot.TeleBot, object):
                 kwargs = self.settings()
             elif text == self.notifications_name:
                 kwargs = self.notifications()
+            elif text == self.get_premium_name:
+                kwargs = self.get_premium()
             else:
                 s = self.update['text']
                 if s.startswith('payment-'): # check payment code
