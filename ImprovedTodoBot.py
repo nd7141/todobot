@@ -477,10 +477,16 @@ class ToDoBot(telebot.TeleBot, object):
 
     # notify 0
     def notify(self):
-        message = u"When to remind?"
-        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
-        markup.add(*[u'1 hour', u'3 Hours', u'1 day', u'Your time', u'Cancel'])
-        self._change_state('notify_select')
+        user = self.users_db.find_one({"user_id": self.update['from']['id']})
+        if float(user.get('expiry_date', 0)) < time.time(): # expired:
+            message = self.premium_message()
+            markup = self._create_initial()
+            self._change_state('initial')
+        else:
+            message = u"When to remind?"
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
+            markup.add(*[u'1 hour', u'3 Hours', u'1 day', u'Your time', u'Cancel'])
+            self._change_state('notify_select')
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
 
@@ -606,20 +612,25 @@ class ToDoBot(telebot.TeleBot, object):
     # notifications 0
     def notifications(self):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
-        if 'lat' not in user:
-            message = u"Let's first set up your city {}".format(emoji_globe)
-            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-            for reminder in self.reminder_db.find({"chat_id": self.update['chat']['id']}):
-                markup.add(self._to_hours(reminder['remind_at']))
-            markup.add(u'Cancel')
-            self._change_state('notifications_choose_city')
+        if float(user.get('expiry_date', 0)) < time.time(): # expired:
+            message = self.premium_message()
+            markup = self._create_initial()
+            self._change_state('initial')
         else:
-            message = u'We will send you an update daily. What time do you want?\nExample: 7:00'
-            markup = telebot.types.ReplyKeyboardMarkup(selective=True, resize_keyboard=True, row_width=1)
-            for reminder in self.reminder_db.find({"chat_id": self.update['chat']['id']}):
-                markup.add(self._to_hours(reminder['remind_at']))
-            markup.add(u'Cancel')
-            self._change_state('notifications_choose_time')
+            if 'lat' not in user:
+                message = u"Let's first set up your city {}".format(emoji_globe)
+                markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                for reminder in self.reminder_db.find({"chat_id": self.update['chat']['id']}):
+                    markup.add(self._to_hours(reminder['remind_at']))
+                markup.add(u'Cancel')
+                self._change_state('notifications_choose_city')
+            else:
+                message = u'We will send you an update daily. What time do you want?\nExample: 7:00'
+                markup = telebot.types.ReplyKeyboardMarkup(selective=True, resize_keyboard=True, row_width=1)
+                for reminder in self.reminder_db.find({"chat_id": self.update['chat']['id']}):
+                    markup.add(self._to_hours(reminder['remind_at']))
+                markup.add(u'Cancel')
+                self._change_state('notifications_choose_time')
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
 
