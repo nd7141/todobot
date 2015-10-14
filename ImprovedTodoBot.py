@@ -811,7 +811,7 @@ class ToDoBot(telebot.TeleBot, object):
         print 'State:', state
 
         if 'text' not in self.update:
-            return kwargs
+            return [kwargs]
 
         if state == 'initial':
             text= self.update['text'].strip()
@@ -819,6 +819,10 @@ class ToDoBot(telebot.TeleBot, object):
                 kwargs = self.cancel_all()
             elif text == '/start':
                 kwargs = self.greetings()
+            elif text == '/countu':
+                kwargs = {'text': self.users_db.count()}
+            elif text == '/countg':
+                kwargs = {'text': self.groups_db.count()}
             elif text == self.todo_name:
                 kwargs = self.todo()
             elif text == self.addons_name:
