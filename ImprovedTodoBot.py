@@ -37,7 +37,7 @@ def parse_date(s):
 
 class ToDoBot(telebot.TeleBot, object):
 
-    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, public_tasks_db, reminder_db, geopy_user, botan_token):
+    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, public_tasks_db, reminder_db, botan_db, geopy_user, botan_token):
         super(self.__class__, self).__init__(token)
         self.users_db = users_db
         self.groups_db = groups_db
@@ -47,13 +47,14 @@ class ToDoBot(telebot.TeleBot, object):
         self.owm = pyowm.OWM(owm_token)
         self.geopy_user = geopy_user
         self.botan_token = botan_token
+        self.botan_db = botan_db
 
         self.commands = ['todo', 't',
                          ]
         self.commands += map(lambda s: s + "@todobbot", self.commands)
         self.todo_name = u'New task {}'.format(emoji_plus)
         self.addons_name = u'More {}'.format(emoji_rocket)
-        self.support_name = u'Support {}'.format(emoji_email)
+        self.support_name = u'Contact {}'.format(emoji_email)
         self.notify_name = u'Remind me {}'.format(emoji_hourglass)
         self.settings_name = u'Settings {}'.format(emoji_wrench)
         self.notifications_name = u'Notifications {}'.format(emoji_alarm)
@@ -794,14 +795,24 @@ class ToDoBot(telebot.TeleBot, object):
             message = u"Hey, {}!!! {}\n".format(user['first_name'], emoji_sun)
             message += u"Thank you for joining our community! {}\n".format(emoji_thumb)
             message += u"We give you 7 days Premium subscription! {}\n".format(emoji_fire)
-            message += u"First things first, let's create your first task.\n"
-            message += u"Press {}".format(self.todo_name)
+            message += u"To create your first task press {}.\n".format(self.todo_name)
+            message += u"And to get more cool features press {}\n".format(self.addons_name)
         else:
-            message = u'Type "cancel"" in case of trouble.\nPress {} to create another task'.format(self.todo_name)
+            message = u'{} Type "cancel" in case of trouble.\n {} Press {} to create another task'.format(emoji_right_arrow,
+                                                                                                          emoji_right_arrow,
+                                                                                                          self.todo_name)
         markup = self._create_initial()
         self._change_state('initial')
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
+
+    def update_botan_db(self, name):
+        # compose a record data
+        d = {'name': name, 'user_id': self.update['from']['id'],
+             'chat_id': self.update['chat']['id']}
+        if 'title' in self.update:
+            d.update({'title': self.update['title']})
+        self.botan_db.insert(d)
 
     def execute(self):
         new_messages = []
@@ -811,9 +822,13 @@ class ToDoBot(telebot.TeleBot, object):
             print u'{} ({}): {}'.format(self.update['from']['first_name'], self.update['from']['id'], self.update['text'])
         print 'Chat id:', self.update['chat']['id']
 
+        self.update_botan_db('User')
+        if 'title' in self.update:
+            self.update_botan_db('Group')
+
 
         # Write new user, group into database
-        user = self.write_user()
+        self.write_user()
         self.write_group()
 
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
@@ -829,26 +844,23 @@ class ToDoBot(telebot.TeleBot, object):
             if text.lower() in ['cancel', '/cancel', '/help']:
                 kwargs = self.cancel_all()
             elif text == '/start':
+                self.update_botan_db('/start')
                 kwargs = self.greetings()
             elif text == '/countu':
                 kwargs = {'text': self.users_db.count()}
             elif text == '/countg':
                 kwargs = {'text': self.groups_db.count()}
             elif text == self.todo_name:
+                self.update_botan_db('todo_name')
                 kwargs = self.todo()
             elif text == self.addons_name:
+                self.update_botan_db('addons_name')
                 kwargs = self.addons()
-            elif text == self.support_name:
-                kwargs = self.support()
-            elif text == self.notify_name:
-                kwargs = self.notify()
-            elif text == self.settings_name:
-                kwargs = self.settings()
-            elif text == self.notifications_name:
-                kwargs = self.notifications()
             elif text == self.get_premium_name:
+                self.update_botan_db('premium_name_initial')
                 kwargs = self.get_premium()
             else:
+                self.update_botan_db('remove_tasks')
                 s = self.update['text']
                 if s.startswith('payment-'): # check payment code
                     code = s[8:]
@@ -868,16 +880,22 @@ class ToDoBot(telebot.TeleBot, object):
                     elif s[:idx-1] in todos:
                         kwargs = self.remove_from_list(s[:idx-1])
         elif state == 'todo_write':
+            self.update_botan_db('todo_write')
             kwargs = self.todo_write()
         elif state == 'todo_create_list':
+            self.update_botan_db('todo_create_list')
             kwargs = self.todo_create_list()
         elif state == 'todo_write_list':
+            self.update_botan_db('todo_write_list')
             kwargs = self.todo_write_list()
         elif state == 'addons_choose':
+            self.update_botan_db('addons_choose')
             kwargs = self.addons_choose()
         elif state == 'todo_choose_list':
+            self.update_botan_db('todo_choose_list')
             kwargs = self.todo_choose_list()
         elif state == 'remove_list_task':
+            self.update_botan_db('remove_list_task')
             kwargs = self.remove_list_task()
         elif state == 'notify_select':
             kwargs = self.notify_select()
@@ -886,12 +904,16 @@ class ToDoBot(telebot.TeleBot, object):
         elif state == 'notify_get_time':
             kwargs = self.notify_get_time()
         elif state == 'settings_select':
+            self.update_botan_db('settinfs_select')
             kwargs = self.settings_select()
         elif state == 'settings_choose_city':
+            self.update_botan_db('settings_choose_city')
             kwargs = self.settings_choose_city()
         elif state == 'notifications_choose_city':
+            self.update_botan_db('notifications_choose_city')
             kwargs = self.notifications_choose_city()
         elif state == 'notifications_choose_time':
+            self.update_botan_db('notifications_choose_time')
             kwargs = self.notifications_choose_time()
         else:
             message = u'Return to initial menu {}'.format(emoji_return_arrow)
