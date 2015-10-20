@@ -47,6 +47,11 @@ emoji_car = u'\U0001F698'
 emoji_suncloud = u'\u26C5'
 emoji_sun = u'\u2600'
 emoji_inbox = u'\U0001F4E5'
+emoji_lightning = u'\u26A1'
+emoji_diamond = u'\U0001F48E'
+emoji_abc = u'\U0001F524'
+emoji_star_shine = u'\U0001F31F'
+
 
 emoji_numbers = {
     1: u"\u0031\u20E3",

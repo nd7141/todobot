@@ -54,7 +54,7 @@ class ToDoBot(telebot.TeleBot, object):
         self.commands += map(lambda s: s + "@todobbot", self.commands)
         self.todo_name = u'New task {}'.format(emoji_plus)
         self.addons_name = u'More {}'.format(emoji_rocket)
-        self.support_name = u'Contact {}'.format(emoji_email)
+        self.support_name = u'Support {}'.format(emoji_email)
         self.notify_name = u'Remind me {}'.format(emoji_hourglass)
         self.settings_name = u'Settings {}'.format(emoji_wrench)
         self.notifications_name = u'Notifications {}'.format(emoji_alarm)
@@ -178,7 +178,7 @@ class ToDoBot(telebot.TeleBot, object):
             self.users_db.insert_one(user_json.__dict__)
             # give free days of Premium
             self.users_db.update({"user_id": self.update['from']['id']},
-                    {"$set": {'expiry_date': time.time() + 86400*7}})
+                    {"$set": {'expiry_date': time.time() + 86400*30}})
             now = datetime.datetime.now() + datetime.timedelta(days=1)
             offset = float(now.strftime("%s"))
             self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
@@ -367,7 +367,8 @@ class ToDoBot(telebot.TeleBot, object):
         tasks = todos[lst]
         message, markup = '', None
         for task in tasks:
-            if task['text'] == text:
+            print task['text']
+            if task['text'].startswith(text[:-2]):
                 self.tasks_db.update({"_id": task["_id"]},
                     {"$set": {"finished": True, "end": time.time()}})
                 self.public_tasks_db.update({"message_id": task["message_id"]},
@@ -399,7 +400,9 @@ class ToDoBot(telebot.TeleBot, object):
             lst = user.get(u"tmp2{}".format(self.update['chat']['id']), '')
             tasks = todos[lst]
             message = ''
+            N = len(self.update['text'])
             for task in tasks:
+                print 'task', task
                 if task['text'] == self.update['text']:
                     self.tasks_db.update({"_id": task["_id"]},
                         {"$set": {"finished": True, "end": time.time()}})
@@ -418,10 +421,9 @@ class ToDoBot(telebot.TeleBot, object):
     def addons(self):
         message = u'Choose add-on {}'.format(emoji_bomb)
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2, selective=True)
-        markup.row(self.notify_name, self.support_name)
-        markup.row(self.notifications_name, self.settings_name)
+        markup.row(self.notifications_name, self.support_name)
         markup.row(self.current_tasks_name, self.finished_tasks_name)
-        markup.row(self.get_premium_name)
+        markup.row(self.settings_name, self.get_premium_name)
         markup.row(u'Cancel')
         self._change_state('addons_choose')
         kwargs = {"text": message, "reply_markup": markup}
@@ -445,8 +447,8 @@ class ToDoBot(telebot.TeleBot, object):
             premessage = u'Finished tasks:\n'
             message = premessage + u"\n".join([u"{} ({})".format(t, e) for (t,e) in texts])
             return {"text": message, "reply_markup": markup}
-        elif self.update['text'] == self.notify_name:
-            return self.notify()
+        # elif self.update['text'] == self.notify_name:
+        #     return self.notify()
         elif self.update['text'] == self.support_name:
             return self.support()
         elif self.update['text'] == self.notifications_name:
@@ -466,7 +468,8 @@ class ToDoBot(telebot.TeleBot, object):
             self._change_state('initial')
             kwargs = {"text": message, "reply_markup": markup}
         else:
-            message = u"You already have a Premium account! {} You are awesome!!!".format(emoji_fire)
+            message = u"You already have a Premium account! {} \nYou are awesome!!!".format(emoji_fire)
+            message += u"Expire date: {}".format(datetime.datetime.fromtimestamp(int(float(user.get('expiry_date', 0)))).strftime('%d %-B %Y'))
             kwargs = {"text": message}
         return kwargs
 
@@ -794,7 +797,7 @@ class ToDoBot(telebot.TeleBot, object):
         if float(user['created']) + 60 > time.time(): # was just created
             message = u"Hey, {}!!! {}\n".format(user['first_name'], emoji_sun)
             message += u"Thank you for joining our community! {}\n".format(emoji_thumb)
-            message += u"We give you 7 days Premium subscription! {}\n".format(emoji_fire)
+            message += u"We give you 1 month Premium subscription! {}\n".format(emoji_fire)
             message += u"To create your first task press {}.\n".format(self.todo_name)
             message += u"And to get more cool features press {}\n".format(self.addons_name)
         else:
@@ -850,6 +853,8 @@ class ToDoBot(telebot.TeleBot, object):
                 kwargs = {'text': self.users_db.count()}
             elif text == '/countg':
                 kwargs = {'text': self.groups_db.count()}
+            elif text == '/countt':
+                kwargs = {'text': self.tasks_db.count()}
             elif text == self.todo_name:
                 self.update_botan_db('todo_name')
                 kwargs = self.todo()
@@ -875,10 +880,16 @@ class ToDoBot(telebot.TeleBot, object):
                     if '' in todos: # default list
                         texts = [task['text'] for task in todos[''] if 'text' in task]
                     idx = s.find('(')
-                    if s in texts: # check if non-default list
-                        kwargs = self.remove(s, '')
-                    elif s[:idx-1] in todos:
+                    for T in texts:
+                        if T.startswith(s[:-2]):
+                            kwargs = self.remove(s, '')
+                            break
+                    else:
                         kwargs = self.remove_from_list(s[:idx-1])
+                    # if s in texts: # check if non-default list
+                    #     kwargs = self.remove(s, '')
+                    # elif s[:idx-1] in todos:
+                    #     kwargs = self.remove_from_list(s[:idx-1])
         elif state == 'todo_write':
             self.update_botan_db('todo_write')
             kwargs = self.todo_write()
