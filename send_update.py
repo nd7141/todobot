@@ -52,6 +52,7 @@ if __name__ == '__main__':
     me = 80639335
     yura_pekov = 1040729
     yura_oparin = 93518804
+    testdevgroup = -28297621
 
     # setup databases
     client = pymongo.MongoClient()
@@ -60,6 +61,9 @@ if __name__ == '__main__':
     # groups_db = db['groups_db']
     users_db = db.test_users
     groups_db = db.test_groups
+    users_db.insert_one({"user_id": me, "first_name": 'Sergey'})
+    groups_db.insert_one({"group_id": testdevgroup, "title": 'Testing dev group'})
+
 
     for u in users_db.find():
         print u

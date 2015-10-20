@@ -63,7 +63,7 @@ class ToDoBot(telebot.TeleBot, object):
         self.get_premium_name = u'Get Premium {}'.format(emoji_fire)
 
         self.commands_name = [self.todo_name, self.addons_name, self.notifications_name, self.notify_name, self.settings_name,
-                         self.support_name]
+                         self.support_name, 'cancel', 'Cancel', '/start', '/help', '/countu', '/countg', '/countt']
 
         me = 80639335
         testdevgroup = -28297621
