@@ -885,11 +885,8 @@ class ToDoBot(telebot.TeleBot, object):
                             kwargs = self.remove(s, '')
                             break
                     else:
-                        kwargs = self.remove_from_list(s[:idx-1])
-                    # if s in texts: # check if non-default list
-                    #     kwargs = self.remove(s, '')
-                    # elif s[:idx-1] in todos:
-                    #     kwargs = self.remove_from_list(s[:idx-1])
+                        if s[:idx-1] in todos:
+                            kwargs = self.remove_from_list(s[:idx-1])
         elif state == 'todo_write':
             self.update_botan_db('todo_write')
             kwargs = self.todo_write()
