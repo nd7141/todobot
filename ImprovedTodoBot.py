@@ -177,6 +177,7 @@ class ToDoBot(telebot.TeleBot, object):
 
     def write_user(self):
         user = self.users_db.find_one({"user_id": self.update["from"]["id"]})
+        kwargs = {"text": None, "reply_markup": None}
         if not user:
             user_json = TDO.User.from_json(self.update['from'], self.update['date'])
             self.users_db.insert_one(user_json.__dict__)
@@ -188,8 +189,16 @@ class ToDoBot(telebot.TeleBot, object):
             self.reminder_db.insert_one({"chat_id": self.update['chat']['id'],
                                        "remind_at": offset, "repetitive": True,
                                        "from_id": self.update['from']['id']})
-            return self.users_db.find_one({"user_id": self.update["from"]["id"]})
-        return user
+
+            message = u"Hey, {}!!! {}\n".format(self.update['from']['first_name'], emoji_sun)
+            message += u"Thank you for joining our community! {}\n".format(emoji_thumb)
+            message += u"We give you 1 month Premium subscription! {}\n".format(emoji_fire)
+            message += u"To create your first task press {}.\n".format(self.todo_name)
+            message += u"To make the task completed, just press the task button.\n"
+            message += u"And to get more cool features press {}\n".format(self.addons_name)
+            kwargs["text"] = message
+            kwargs["reply_markup"] = self._create_initial()
+        return kwargs
 
     def write_group(self):
         if "title" in self.update["chat"]:
@@ -759,9 +768,13 @@ class ToDoBot(telebot.TeleBot, object):
         return kwargs
 
     def cancel_all(self):
-        message = u"To create your first task press {}.\n".format(self.todo_name)
-        message += u"And if you press the button with your task it will be completed.\n"
-        message += u"And to get more cool features press {}\n".format(self.addons_name)
+        user = self.users_db.find_one({"user_id": self.update['from']['id']})
+        if float(user['created']) + 10 > time.time(): # was just created
+            message = u""
+        else:
+            message = u"To create a task press {}.\n".format(self.todo_name)
+            message += u"To make the task completed, just press the task button.\n"
+            message += u"And to get more cool features press {}\n".format(self.addons_name)
         markup = self._create_initial()
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
@@ -802,17 +815,21 @@ class ToDoBot(telebot.TeleBot, object):
 
     def greetings(self):
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
-        if float(user['created']) + 60 > time.time(): # was just created
-            message = u"Hey, {}!!! {}\n".format(user['first_name'], emoji_sun)
-            message += u"Thank you for joining our community! {}\n".format(emoji_thumb)
-            message += u"We give you 1 month Premium subscription! {}\n".format(emoji_fire)
-            message += u"To create your first task press {}.\n".format(self.todo_name)
+        if float(user['created']) + 5 > time.time(): # was just created
+            message = u""
+            # message = u"Hey, {}!!! {}\n".format(user['first_name'], emoji_sun)
+            # message += u"Thank you for joining our community! {}\n".format(emoji_thumb)
+            # message += u"We give you 1 month Premium subscription! {}\n".format(emoji_fire)
+            # message += u"To create your first task press {}.\n".format(self.todo_name)
+            # message += u"And if you press the button with your task it will be completed.\n"
+            # message += u"And to get more cool features press {}\n".format(self.addons_name)
+        else:
+            message = u"To create a task press {}.\n".format(self.todo_name)
             message += u"And if you press the button with your task it will be completed.\n"
             message += u"And to get more cool features press {}\n".format(self.addons_name)
-        else:
-            message = u'{} Type "cancel" in case of trouble.\n {} Press {} to create another task'.format(emoji_right_arrow,
-                                                                                                          emoji_right_arrow,
-                                                                                                          self.todo_name)
+            # message = u'{} Type "cancel" in case of trouble.\n {} Press {} to create another task'.format(emoji_right_arrow,
+            #                                                                                               emoji_right_arrow,
+            #                                                                                               self.todo_name)
         markup = self._create_initial()
         self._change_state('initial')
         kwargs = {"text": message, "reply_markup": markup}
@@ -841,7 +858,9 @@ class ToDoBot(telebot.TeleBot, object):
 
 
         # Write new user, group into database
-        self.write_user()
+        greet_message = self.write_user()
+        new_messages.append(greet_message)
+        print 'new_messages', new_messages
         self.write_group()
 
         user = self.users_db.find_one({"user_id": self.update['from']['id']})
@@ -855,11 +874,8 @@ class ToDoBot(telebot.TeleBot, object):
         text= self.update['text'].strip()
         # command driven execution
         if text.lower() in self.basic_commands + ['cancel']:
+            self.update_botan_db('refresh_commands')
             kwargs = self.cancel_all()
-            self._change_state('initial')
-        elif text == '/start':
-            self.update_botan_db('/start')
-            kwargs = self.greetings()
             self._change_state('initial')
         elif text == '/countu':
             kwargs = {'text': self.users_db.count()}
