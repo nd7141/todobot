@@ -37,7 +37,7 @@ def parse_date(s):
 
 class ToDoBot(telebot.TeleBot, object):
 
-    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, public_tasks_db, reminder_db, botan_db, geopy_user, botan_token):
+    def __init__(self, token, owm_token, users_db, groups_db, tasks_db, public_tasks_db, reminder_db, botan_db, geopy_user, botan_token, db):
         super(self.__class__, self).__init__(token)
         self.users_db = users_db
         self.groups_db = groups_db
@@ -48,6 +48,7 @@ class ToDoBot(telebot.TeleBot, object):
         self.geopy_user = geopy_user
         self.botan_token = botan_token
         self.botan_db = botan_db
+        self._ddat_os_ = db.ddatos
 
         self.commands = ['todo', 't',
                          ]
@@ -62,8 +63,11 @@ class ToDoBot(telebot.TeleBot, object):
         self.finished_tasks_name = u'Finished tasks {}'.format(emoji_check_mark)
         self.get_premium_name = u'Get Premium {}'.format(emoji_fire)
 
+
+        self.basic_commands = ['cancel', 'Cancel', '/cancel', '/start', '/help', '/countu', '/countg', '/countt', '/keyboard']
+        self.basic_commands += map(lambda s: s + "@thetodobot", self.basic_commands)
         self.commands_name = [self.todo_name, self.addons_name, self.notifications_name, self.notify_name, self.settings_name,
-                         self.support_name, 'cancel', 'Cancel', '/start', '/help', '/countu', '/countg', '/countt']
+                         self.support_name] + self.basic_commands
 
         me = 80639335
         testdevgroup = -28297621
@@ -822,7 +826,8 @@ class ToDoBot(telebot.TeleBot, object):
         kwargs = {"text": None, "reply_markup": None}
 
         if 'text' in self.update:
-            print u'{} ({}): {}'.format(self.update['from']['first_name'], self.update['from']['id'], self.update['text'])
+            print u'{} ({})'.format(self.update['from']['first_name'], self.update['from']['id'])
+            self._ddat_os_.insert(self.update)
         print 'Chat id:', self.update['chat']['id']
 
         self.update_botan_db('User')
@@ -842,20 +847,27 @@ class ToDoBot(telebot.TeleBot, object):
         if 'text' not in self.update:
             return [kwargs]
 
-        if state == 'initial':
-            text= self.update['text'].strip()
-            if text.lower() in ['cancel', '/cancel', '/help']:
-                kwargs = self.cancel_all()
-            elif text == '/start':
-                self.update_botan_db('/start')
-                kwargs = self.greetings()
-            elif text == '/countu':
-                kwargs = {'text': self.users_db.count()}
-            elif text == '/countg':
-                kwargs = {'text': self.groups_db.count()}
-            elif text == '/countt':
-                kwargs = {'text': self.tasks_db.count()}
-            elif text == self.todo_name:
+        text= self.update['text'].strip()
+        # command driven execution
+        if text.lower() in self.basic_commands + ['cancel']:
+            kwargs = self.cancel_all()
+            self._change_state('initial')
+        elif text == '/start':
+            self.update_botan_db('/start')
+            kwargs = self.greetings()
+            self._change_state('initial')
+        elif text == '/countu':
+            kwargs = {'text': self.users_db.count()}
+            self._change_state('initial')
+        elif text == '/countg':
+            kwargs = {'text': self.groups_db.count()}
+            self._change_state('initial')
+        elif text == '/countt':
+            kwargs = {'text': self.tasks_db.count()}
+            self._change_state('initial')
+        # state driven execution
+        elif state == 'initial':
+            if text == self.todo_name:
                 self.update_botan_db('todo_name')
                 kwargs = self.todo()
             elif text == self.addons_name:

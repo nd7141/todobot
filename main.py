@@ -37,7 +37,7 @@ if __name__ == "__main__":
     geopy_user = get_token('geopy_username.txt')
     botan_token = get_token('botan_token.txt')
 
-    td_bot = ITDB.ToDoBot(token, owm_token, users_db, groups_db, tasks_db, public_tasks_db, reminder_db, botan_db, geopy_user, botan_token)
+    td_bot = ITDB.ToDoBot(token, owm_token, users_db, groups_db, tasks_db, public_tasks_db, reminder_db, botan_db, geopy_user, botan_token, db)
     td_bot.set_update_listener()
     td_bot.polling()
 
