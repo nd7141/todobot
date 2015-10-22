@@ -404,26 +404,34 @@ P.P.S. Add me to the personal chat to get your 1 month Free Premium Plan {emoji_
 
     def remove_from_list(self, lst):
         todos = self._all_lists()
-        tasks = [u"{} {}".format(emoji_boxcheck, task['text']) for task in todos[lst] if 'text' in task]
-        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
-        markup.add(*tasks)
-        markup.add(u'Cancel')
-        message = u'Choose task'
-        self._change_state('remove_list_task')
-        self.users_db.update({"user_id": self.update['from']['id']},
-                             {"$set": {u"tmp2{}".format(self.update['chat']['id']): lst}})
+        if lst in todos:
+            tasks = [u"{} {}".format(emoji_boxcheck, task['text']) for task in todos[lst] if 'text' in task]
+            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1, selective=True)
+            markup.add(*tasks)
+            markup.add(u'Cancel')
+            message = u'Choose task'
+            self._change_state('remove_list_task')
+            self.users_db.update({"user_id": self.update['from']['id']},
+                                 {"$set": {u"tmp2{}".format(self.update['chat']['id']): lst}})
+        else:
+            message = u'Done {}'.format(emoji_boxcheck)
+            markup = self._create_initial()
+            self._change_state('initial')
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
 
     def remove_list_task(self):
         if self.update['text'] == u'Cancel':
             message = u'Done {}'.format(emoji_boxcheck)
+            markup = self._create_initial()
+            self._change_state('initial')
+            return {"text": message, "reply_markup": markup}
         else:
             todos = self._all_lists()
             user = self.users_db.find_one({"user_id": self.update['from']['id']})
             lst = user.get(u"tmp2{}".format(self.update['chat']['id']), '')
             tasks = todos[lst]
-            message = ''
+            message = u''
             N = len(self.update['text'])
             s = self.update['text']
             w0 = s.split()[0]
@@ -436,11 +444,7 @@ P.P.S. Add me to the personal chat to get your 1 month Free Premium Plan {emoji_
                     message = u'Completed "{}" {}'.format(self.update['text'], emoji_star)
             if not message:
                 message = u'No such task'
-
-        self._change_state('initial')
-        markup = self._create_initial()
-        kwargs = {"text": message, "reply_markup": markup}
-        return kwargs
+            return self.remove_from_list(lst)
 
 
     def addons(self):
@@ -694,16 +698,23 @@ P.P.S. Add me to the personal chat to get your 1 month Free Premium Plan {emoji_
             markup = self._create_initial()
             self._change_state('initial')
         else:
-            w0len = len(self.update['text'].split()[0])
-            date = parse_date(self.update['text'][w0len:])
+            w0 = self.update['text'].split()[0]
+            if w0 == emoji_boxcheck:
+                date = parse_date(self.update['text'][len(w0):])
+            else:
+                date = parse_date(self.update['text'])
             if date is not None:
                 for r in self.reminder_db.find({"chat_id": self.update['chat']['id']}):
                     d = datetime.datetime.fromtimestamp(int(r['remind_at']))
                     if d.hour == date.hour and d.minute == date.minute:
                         self.reminder_db.remove(r)
                         message = u'Removed notification at {}'.format(date.strftime("%-H:%M"))
-                        markup = self._create_initial()
-                        self._change_state('initial')
+                        markup = telebot.types.ReplyKeyboardMarkup(selective=True, resize_keyboard=True, row_width=1)
+                        for reminder in self.reminder_db.find({"chat_id": self.update['chat']['id']}):
+                            markup.add(u"{} {}".format(emoji_boxcheck, self._to_hours(reminder['remind_at'])))
+                        markup.add(u'Cancel')
+                        # markup = self._create_initial()
+                        # self._change_state('initial')
                         break
                 else:
                     user = self.users_db.find_one({"user_id": self.update['from']['id']})
