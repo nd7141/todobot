@@ -190,12 +190,17 @@ class ToDoBot(telebot.TeleBot, object):
                                        "remind_at": offset, "repetitive": True,
                                        "from_id": self.update['from']['id']})
 
-            message = u"Hey, {}!!! {}\n".format(self.update['from']['first_name'], emoji_sun)
-            message += u"Thank you for joining our community! {}\n".format(emoji_thumb)
-            message += u"We give you 1 month Premium subscription! {}\n".format(emoji_fire)
-            message += u"To create your first task press {}.\n".format(self.todo_name)
-            message += u"To make the task completed, just press the task button.\n"
-            message += u"And to get more cool features press {}\n".format(self.addons_name)
+            message = u"""Hi {user_name}!
+
+Great to see you in the chat! {emoji_sun}
+
+I'm the Todobot for Telegram. With me you can create tasks by pressing on New task {emoji_plus} on the custom keyboard. To complete the task, press on the task name.
+
+P.S. Don't forget to set yourself daily reminders on ongoing and completed tasks. Choose Notifications {emoji_alarm} from More {emoji_rocket} and type in the time.
+
+P.P.S. Add me to the personal chat to get your 1 month Free Premium Plan {emoji_fire}.
+""".format(user_name=self.update['from']['first_name'], emoji_sun=emoji_sun, emoji_plus=emoji_plus, emoji_alarm=emoji_alarm,
+           emoji_rocket=emoji_rocket, emoji_fire=emoji_fire)
             kwargs["text"] = message
             kwargs["reply_markup"] = self._create_initial()
         return kwargs
@@ -251,7 +256,7 @@ class ToDoBot(telebot.TeleBot, object):
             markup.row(self.get_premium_name)
         todos = self._all_lists()
         markup.add(*[u"{} {}".format(emoji_boxcheck, task['text']) for task in todos.get('', []) if 'text' in task])
-        lists = sorted([u"{} ({}) {}".format(todo, len(todos[todo]), emoji_memo) for todo in todos if todo], key=unicode.lower)
+        lists = [u"{} ({}) {}".format(todo, len(todos[todo]), emoji_memo) for todo in todos if todo]
         l = 2
         for i in xrange(0, len(lists), l):
             markup.row(*lists[i:i+l])
@@ -276,10 +281,15 @@ class ToDoBot(telebot.TeleBot, object):
         markup.add(u'Create a new Todo list {}'.format(emoji_open_folder))
         i = 0
         # add lists as buttons
-        for todo in todos:
-            if todo:
-                i+= 1
-                markup.add(u"{}. {}".format(i, todo))
+        todos = self._all_lists()
+        lists = [u"{} ({}) {}".format(todo, len(todos[todo]), emoji_memo) for todo in todos if todo]
+        l = 2
+        for i in xrange(0, len(lists), l):
+            markup.row(*lists[i:i+l])
+        # for todo in todos:
+        #     if todo:
+        #         i+= 1
+        #         markup.add(u"{}. {}".format(i, todo))
         markup.add(u'Cancel')
         message = u'Write task to Default list {} or Create a new one {}'.format(emoji_pencil, emoji_open_folder)
         self._change_state('todo_create_list')
@@ -305,10 +315,11 @@ class ToDoBot(telebot.TeleBot, object):
                 markup.add(u'Cancel')
                 self._change_state('todo_write_list')
         else:
-            idx = self.update['text'].find('.')
-            lst = self.update['text'][idx+2:]
-            if idx > 0 and lst in todos:
-                message = u'Please, write your task {} For example: Buy shoes.'.format(emoji_pencil)
+            idx = self.update['text'].find('(')
+            lst = self.update['text'][:idx-1]
+            print 'lst', lst
+            if lst in todos:
+                message = u'Write task to {} list {}'.format(lst, emoji_pencil)
                 markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                 markup.add('Cancel')
                 self._change_state('todo_write')
@@ -415,9 +426,9 @@ class ToDoBot(telebot.TeleBot, object):
             message = ''
             N = len(self.update['text'])
             s = self.update['text']
-            word0len = len(s.split()[0])
+            w0 = s.split()[0]
             for task in tasks:
-                if task['text'].startswith(s[word0len+1:-2]):
+                if w0 == emoji_boxcheck and task['text'].startswith(s[len(w0)+1:-2]):
                     self.tasks_db.update({"_id": task["_id"]},
                         {"$set": {"finished": True, "end": time.time()}})
                     self.public_tasks_db.update({"message_id": task["message_id"]},
@@ -913,11 +924,10 @@ class ToDoBot(telebot.TeleBot, object):
                     if '' in todos: # default list
                         texts = [task['text'] for task in todos[''] if 'text' in task]
                     idx = s.find('(')
-                    word0len = len(s.split()[0])
-                    print 'text', s[word0len+1:-2]
+                    w0 = s.split()[0]
                     for T in texts:
-                        if T.startswith(s[word0len+1:-2]):
-                            kwargs = self.remove(s[word0len+1:-2], '')
+                        if w0 == emoji_boxcheck and  T.startswith(s[len(w0)+1:-2]):
+                            kwargs = self.remove(s[len(w0)+1:-2], '')
                             break
                     else:
                         if s[:idx-1] in todos:
