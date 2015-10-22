@@ -64,7 +64,7 @@ class ToDoBot(telebot.TeleBot, object):
         self.get_premium_name = u'Get Premium {}'.format(emoji_fire)
 
 
-        self.basic_commands = ['cancel', 'Cancel', '/cancel', '/start', '/help', '/countu', '/countg', '/countt', '/keyboard']
+        self.basic_commands = ['/start', '/help', '/countu', '/countg', '/countt', '/keyboard']
         self.basic_commands += map(lambda s: s + "@thetodobot", self.basic_commands)
         self.commands_name = [self.todo_name, self.addons_name, self.notifications_name, self.notify_name, self.settings_name,
                          self.support_name] + self.basic_commands
@@ -783,9 +783,12 @@ P.P.S. Add me to the personal chat to get your 1 month Free Premium Plan {emoji_
         if float(user['created']) + 10 > time.time(): # was just created
             message = u""
         else:
-            message = u"To create a task press {}.\n".format(self.todo_name)
-            message += u"To make the task completed, just press the task button.\n"
-            message += u"And to get more cool features press {}\n".format(self.addons_name)
+            message = u"""Create tasks by pressing on New task {emoji_plus} on the custom keyboard.
+
+Complete tasks by pressing on the their name.
+
+Don't forget to set yourself daily reminders on ongoing and completed tasks. Choose Notifications {emoji_alarm} from More {emoji_rocket} and type in the time.
+""".format(emoji_plus = emoji_plus, emoji_alarm=emoji_alarm, emoji_rocket=emoji_rocket)
         markup = self._create_initial()
         kwargs = {"text": message, "reply_markup": markup}
         return kwargs
@@ -884,7 +887,7 @@ P.P.S. Add me to the personal chat to get your 1 month Free Premium Plan {emoji_
 
         text= self.update['text'].strip()
         # command driven execution
-        if text.lower() in self.basic_commands + ['cancel']:
+        if text.lower() in self.basic_commands:
             self.update_botan_db('refresh_commands')
             kwargs = self.cancel_all()
             self._change_state('initial')
